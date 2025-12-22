@@ -9,7 +9,7 @@ Key features:
 - Aggregate caching and query acceleration  
 - Compatible with multiple SQL databases via JDBC  
 - Open architecture — easy to extend and integrate  
-- Ideal for lightweight BI and analytical applications  
+- Ideal for lightweight BI and analytical applications
 
 Who it's for:
 - BI developers and data engineers using OLAP-style analytics  
@@ -18,6 +18,11 @@ Who it's for:
 
 License:
 - Distributed under an open-source license (e.g., Apache-2.0 or MIT — specify your choice)
+
+Routing configuration:
+- eMondrian XMLA api: `http://localhost/xmla`
+- schemaEditor: `http://localhost/schema-editor/`
+- webOlapClient: `http://localhost/client/`
 
 Difference from eMondrian Enterprise:
 - **Community Edition** includes the core functionality for free and open use  
