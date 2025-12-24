@@ -39,7 +39,7 @@ Docker must be installed and running on your system.
 Clone the repository and start eMondrian using Docker Compose:
 
 ```bash
-git clone https://github.com/<your-org>/emondrian-community.git
+git clone https://github.com/eMondrian/emondrian-community.git
 cd emondrian-community
 docker compose up -d
 ```
