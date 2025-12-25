@@ -8,24 +8,24 @@ services:
   #     - app_network
 
   eMondrian:
-    image: emondrian/emondrian
+    image: emondrian/emondrian:1.0.0
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
-      - ./datasources.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/datasources.xml
+      #- ./datasources.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/datasources.xml
       # - ./context.xml:/usr/local/tomcat/conf/context.xml   # Volume for Tomcat to update data immediately
-      - ./mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties
-      - ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
-      - ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
+      #- ./mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties
+      #- ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
+      #- ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
     environment:
-      - TZ=Europe/Warsaw
+      - TZ=Europe/Zurich
     restart: unless-stopped
     networks:
       - app_network
 
 
   webOlapClient:
-    image: emondrian/webolapclient:latest
+    image: emondrian/webolapclient:0.0.1
     container_name: web_olap_client
     networks:
       - app_network
