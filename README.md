@@ -41,6 +41,7 @@ Clone the repository and start eMondrian using Docker Compose:
 ```bash
 git clone https://github.com/eMondrian/emondrian-community.git
 cd emondrian-community
+cp .env.example .env
 docker compose up -d
 ```
 
