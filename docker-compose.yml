@@ -1,9 +1,4 @@
 services:
-  # eMondrian:
-  #   image: emondrian/emondrian:latest
-  #   container_name: emondrian_service
-  #   networks:
-  #     - app_network
 
   eMondrian:
     image: emondrian/emondrian:1.0.0
@@ -11,12 +6,13 @@ services:
     volumes:
       - ./logs:/usr/local/tomcat/logs
       #- ./datasources.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/datasources.xml
-      # - ./context.xml:/usr/local/tomcat/conf/context.xml   # Volume for Tomcat to update data immediately
+      #- ./context.xml:/usr/local/tomcat/conf/context.xml   # Volume for Tomcat to update data immediately
       #- ./mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties
       #- ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
       #- ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
     environment:
-      - TZ=Europe/Zurich
+      TZ: Europe/Zurich
+      #JAVA_TOOL_OPTIONS: "$JAVA_TOOL_OPTIONS -Xms2g -Xmx4g -XX:+UseG1GC"
     restart: unless-stopped
     networks:
       - app_network
