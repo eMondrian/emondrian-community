@@ -26,9 +26,8 @@ It provides an analytical layer on top of relational databases, allowing users t
 
 ## Prerequisites
 
-- Docker Engine 20.10 or later
-- Docker Compose v2  
-  (included with Docker Desktop)
+- [Docker Engine 20.10+](https://docs.docker.com/get-docker/) – required to run eMondrian
+- Docker Compose v2 (included with Docker Desktop)
 
 Docker must be installed and running on your system.
 
