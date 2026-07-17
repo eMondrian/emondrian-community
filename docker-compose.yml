@@ -1,15 +1,16 @@
 services:
 
   eMondrian:
-    image: emondrian/emondrian:1.0.0
+    image: emondrian/emondrian:1.0.20
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
-      #- ./datasources.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/datasources.xml
+      - ./datasources.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/datasources.xml
       #- ./context.xml:/usr/local/tomcat/conf/context.xml   # Volume for Tomcat to update data immediately
       #- ./mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties
-      #- ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
+      - ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
       #- ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
+      - ./modules:/usr/local/tomcat/webapps/emondrian/modules
     environment:
       TZ: Europe/Zurich
       #JAVA_TOOL_OPTIONS: "$JAVA_TOOL_OPTIONS -Xms2g -Xmx4g -XX:+UseG1GC"
