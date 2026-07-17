@@ -26,7 +26,7 @@ services:
       - app_network
 
   emondrian_entry:
-    image: emondrian/entry:0.0.3
+    image: emondrian/entry:0.0.4
     container_name: emondrian_entry
     ports:
       - "80:80"
