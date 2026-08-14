@@ -26,6 +26,29 @@ function Fail {
 }
 
 function Get-WslVersion {
+    # Preferred method:
+    # read the installed WSL package version directly.
+    # This avoids problems with localized Windows output
+    # and Windows PowerShell 5.1 console encoding.
+    try {
+        $WslPackage = Get-AppxPackage `
+            -Name "MicrosoftCorporationII.WindowsSubsystemForLinux" `
+            -ErrorAction SilentlyContinue |
+            Sort-Object Version -Descending |
+            Select-Object -First 1
+
+        if (
+            $null -ne $WslPackage -and
+            $null -ne $WslPackage.Version
+        ) {
+            return [version]$WslPackage.Version.ToString()
+        }
+    }
+    catch {
+        # Fall back to wsl.exe below.
+    }
+
+    # Fallback method.
     try {
         $Output = & wsl.exe --version 2>&1
 
@@ -33,7 +56,9 @@ function Get-WslVersion {
             return $null
         }
 
-        $Text = $Output -join "`n"
+        # Windows PowerShell 5.1 may preserve NUL characters
+        # in output produced by native Windows applications.
+        $Text = (($Output -join "`n") -replace "`0", "")
 
         $Match = [regex]::Match(
             $Text,
@@ -398,6 +423,7 @@ Write-Host "Architecture: $env:PROCESSOR_ARCHITECTURE"
 Write-Header "Checking project files"
 
 $RequiredFiles = @(
+    ".env.example",
     "docker-compose.yml",
     "datasources.xml",
     "schema\OnTime.xml",
@@ -414,6 +440,26 @@ foreach ($File in $RequiredFiles) {
 }
 
 Write-Host "Project files: OK"
+
+# ============================================================
+# Prepare environment file
+# ============================================================
+
+$EnvFile = Join-Path $ScriptDir ".env"
+$EnvExample = Join-Path $ScriptDir ".env.example"
+
+if (-not (Test-Path $EnvFile)) {
+    Write-Host "Creating .env from .env.example..."
+
+    Copy-Item `
+        -Path $EnvExample `
+        -Destination $EnvFile
+
+    Write-Host ".env: created"
+}
+else {
+    Write-Host ".env: already exists"
+}
 
 # ============================================================
 # WSL
@@ -450,8 +496,6 @@ Write-Host "Docker Compose configuration: OK"
 Write-Header "Preparing OnTime sample dataset"
 
 & $OnTimeSetup -Sample
-
-# setup-ontime.ps1 exits on its own if preparation fails.
 
 # ============================================================
 # Start containers

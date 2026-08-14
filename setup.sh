@@ -1,35 +1,41 @@
 #!/usr/bin/env bash
+
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-ONTIME_SETUP="./clickhouse/scripts/setup-ontime.sh"
-
 DOCKER=(docker)
-DOCKER_INSTALLED_BY_SCRIPT=0
 
-print_header() {
-  echo
-  echo "============================================================"
-  echo "$1"
-  echo "============================================================"
+# ============================================================
+# Helpers
+# ============================================================
+
+header() {
+    echo
+    echo "============================================================"
+    echo "$1"
+    echo "============================================================"
 }
 
 fail() {
-  echo
-  echo "ERROR: $1" >&2
-  exit 1
+    echo
+    echo "ERROR: $1" >&2
+    exit 1
 }
 
 run_as_root() {
-  if (( EUID == 0 )); then
-    "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo "$@"
-  else
-    fail "Root privileges are required, but sudo is not installed."
-  fi
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+        return
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+        return
+    fi
+
+    fail "Administrator/root privileges are required, but sudo is not available."
 }
 
 # ============================================================
@@ -37,304 +43,319 @@ run_as_root() {
 # ============================================================
 
 install_host_tools() {
-  local need_curl=0
-  local need_unzip=0
+    header "Checking host tools"
 
-  command -v curl >/dev/null 2>&1 || need_curl=1
-  command -v unzip >/dev/null 2>&1 || need_unzip=1
+    local missing=0
 
-  if (( need_curl == 0 && need_unzip == 0 )); then
-    return
-  fi
+    for command_name in curl unzip; do
+        if ! command -v "$command_name" >/dev/null 2>&1; then
+            echo "$command_name: not found"
+            missing=1
+        else
+            echo "$command_name: OK"
+        fi
+    done
 
-  echo "Installing missing host tools..."
+    if [ "$missing" -eq 0 ]; then
+        echo "Host tools: OK"
+        return
+    fi
 
-  if command -v apt-get >/dev/null 2>&1; then
+    echo
+    echo "Installing required host tools..."
 
-    run_as_root apt-get update
+    if command -v apt-get >/dev/null 2>&1; then
+        run_as_root apt-get update
+        run_as_root apt-get install -y \
+            curl \
+            unzip \
+            ca-certificates
 
-    run_as_root env DEBIAN_FRONTEND=noninteractive \
-      apt-get install -y ca-certificates curl unzip
+    elif command -v dnf >/dev/null 2>&1; then
+        run_as_root dnf install -y \
+            curl \
+            unzip \
+            ca-certificates
 
-  elif command -v dnf >/dev/null 2>&1; then
+    elif command -v yum >/dev/null 2>&1; then
+        run_as_root yum install -y \
+            curl \
+            unzip \
+            ca-certificates
 
-    run_as_root dnf install -y ca-certificates curl unzip
+    elif command -v zypper >/dev/null 2>&1; then
+        run_as_root zypper --non-interactive install \
+            curl \
+            unzip \
+            ca-certificates
 
-  elif command -v yum >/dev/null 2>&1; then
+    elif command -v pacman >/dev/null 2>&1; then
+        run_as_root pacman -Sy --noconfirm \
+            curl \
+            unzip \
+            ca-certificates
 
-    run_as_root yum install -y ca-certificates curl unzip
+    elif command -v apk >/dev/null 2>&1; then
+        run_as_root apk add \
+            curl \
+            unzip \
+            ca-certificates
 
-  elif command -v zypper >/dev/null 2>&1; then
+    else
+        fail "Could not detect a supported package manager. Install curl, unzip and ca-certificates manually."
+    fi
 
-    run_as_root zypper --non-interactive install \
-      ca-certificates curl unzip
+    for command_name in curl unzip; do
+        if ! command -v "$command_name" >/dev/null 2>&1; then
+            fail "$command_name is still unavailable after installation."
+        fi
+    done
 
-  elif command -v pacman >/dev/null 2>&1; then
-
-    run_as_root pacman -Sy --noconfirm \
-      ca-certificates curl unzip
-
-  elif command -v apk >/dev/null 2>&1; then
-
-    run_as_root apk add \
-      ca-certificates curl unzip
-
-  else
-
-    fail "curl or unzip is missing and no supported package manager was found."
-
-  fi
-
-  command -v curl >/dev/null 2>&1 \
-    || fail "curl could not be installed."
-
-  command -v unzip >/dev/null 2>&1 \
-    || fail "unzip could not be installed."
+    echo "Host tools installed successfully."
 }
 
 # ============================================================
-# Docker installation
+# Docker
 # ============================================================
 
 install_docker() {
-  local installer
+    header "Installing Docker"
 
-  print_header "Installing Docker Engine"
+    local installer
 
-  [[ "$(uname -s)" == "Linux" ]] \
-    || fail "Automatic Docker installation from this script is supported only on Linux."
+    installer="$(mktemp)"
 
-  command -v curl >/dev/null 2>&1 \
-    || fail "curl is required to install Docker."
+    echo "Downloading the official Docker installation script..."
 
-  if (( EUID != 0 )) && ! command -v sudo >/dev/null 2>&1; then
-    fail "Docker installation requires root privileges or sudo."
-  fi
+    if ! curl -fsSL https://get.docker.com -o "$installer"; then
+        rm -f "$installer"
+        fail "Failed to download the Docker installation script."
+    fi
 
-  if [[ -r /etc/os-release ]]; then
-    . /etc/os-release
+    echo "Installing Docker..."
 
-    echo "Detected OS: ${PRETTY_NAME:-${NAME:-Linux}}"
-  else
-    echo "Detected OS: Linux"
-  fi
+    if [ "$(id -u)" -eq 0 ]; then
+        if ! sh "$installer"; then
+            rm -f "$installer"
+            fail "Docker installation failed."
+        fi
+    else
+        if ! command -v sudo >/dev/null 2>&1; then
+            rm -f "$installer"
+            fail "Docker installation requires administrator/root privileges."
+        fi
 
-  echo "Architecture: $(uname -m)"
-  echo
-  echo "Downloading the official Docker installation script..."
+        if ! sudo sh "$installer"; then
+            rm -f "$installer"
+            fail "Docker installation failed."
+        fi
+    fi
 
-  installer="$(mktemp)"
-
-  if ! curl -fsSL https://get.docker.com -o "$installer"; then
     rm -f "$installer"
-    fail "Failed to download the official Docker installation script."
-  fi
 
-  echo "Installing Docker..."
-
-  if (( EUID == 0 )); then
-
-    if ! sh "$installer"; then
-      rm -f "$installer"
-      fail "Docker installation failed."
+    if ! command -v docker >/dev/null 2>&1; then
+        fail "Docker installation completed, but the docker command was not found."
     fi
 
-  else
-
-    if ! sudo sh "$installer"; then
-      rm -f "$installer"
-      fail "Docker installation failed."
-    fi
-
-  fi
-
-  rm -f "$installer"
-
-  command -v docker >/dev/null 2>&1 \
-    || fail "Docker installation completed, but the docker command was not found."
-
-  DOCKER_INSTALLED_BY_SCRIPT=1
+    echo "Docker installed successfully."
 }
 
 start_docker_daemon() {
-  if command -v systemctl >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+        return
+    fi
 
-    run_as_root systemctl enable --now docker >/dev/null 2>&1 || true
+    echo "Starting Docker daemon..."
 
-  elif command -v service >/dev/null 2>&1; then
+    if command -v systemctl >/dev/null 2>&1; then
+        run_as_root systemctl start docker || true
+    elif command -v service >/dev/null 2>&1; then
+        run_as_root service docker start || true
+    fi
 
-    run_as_root service docker start >/dev/null 2>&1 || true
+    local attempt
 
-  fi
+    for attempt in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
+            return
+        fi
+
+        if command -v sudo >/dev/null 2>&1; then
+            if sudo docker info >/dev/null 2>&1; then
+                return
+            fi
+        fi
+
+        sleep 1
+    done
 }
 
 configure_docker_command() {
-  if docker info >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+        DOCKER=(docker)
+        return
+    fi
 
-    DOCKER=(docker)
-    return
+    if command -v sudo >/dev/null 2>&1; then
+        if sudo docker info >/dev/null 2>&1; then
+            DOCKER=(sudo docker)
+            return
+        fi
+    fi
 
-  fi
-
-  start_docker_daemon
-
-  if docker info >/dev/null 2>&1; then
-
-    DOCKER=(docker)
-    return
-
-  fi
-
-  if (( EUID != 0 )) \
-    && command -v sudo >/dev/null 2>&1 \
-    && sudo docker info >/dev/null 2>&1; then
-
-    DOCKER=(sudo docker)
-    return
-
-  fi
-
-  fail "Docker is installed, but the Docker daemon is unavailable or cannot be accessed."
+    fail "Docker daemon is not available."
 }
 
-check_docker_compose() {
-  if "${DOCKER[@]}" compose version >/dev/null 2>&1; then
-    return
-  fi
+ensure_docker() {
+    header "Checking Docker"
 
-  fail "Docker is installed, but the Docker Compose plugin is missing."
-}
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Docker: not found"
+        install_docker
+    else
+        echo "Docker: found"
+    fi
 
-dc() {
-  "${DOCKER[@]}" compose "$@"
-}
+    start_docker_daemon
+    configure_docker_command
 
-docker_cli() {
-  "${DOCKER[@]}" "$@"
+    echo "Docker daemon: OK"
+
+    if ! "${DOCKER[@]}" compose version >/dev/null 2>&1; then
+        fail "Docker Compose plugin is not available."
+    fi
+
+    echo "Docker: $("${DOCKER[@]}" --version)"
+    echo "Docker Compose: $("${DOCKER[@]}" compose version --short)"
 }
 
 # ============================================================
 # Start
 # ============================================================
 
-print_header "eMondrian Community Quick Start"
+header "eMondrian Community Quick Start"
+
+echo "Operating system: $(uname -s)"
+echo "Architecture: $(uname -m)"
 
 # ============================================================
-# Required tools
+# Host dependencies
 # ============================================================
-
-echo "Checking required tools..."
 
 install_host_tools
 
-echo "curl:   OK"
-echo "unzip:  OK"
+# ============================================================
+# Validate project files
+# ============================================================
+
+header "Checking project files"
+
+REQUIRED_FILES=(
+    ".env.example"
+    "docker-compose.yml"
+    "datasources.xml"
+    "schema/OnTime.xml"
+    "clickhouse/init-scripts/init-ontime.sh"
+    "clickhouse/scripts/setup-ontime.sh"
+)
+
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        fail "$file was not found."
+    fi
+done
+
+echo "Project files: OK"
+
+# ============================================================
+# Prepare environment file
+# ============================================================
+
+if [ ! -f ".env" ]; then
+    echo "Creating .env from .env.example..."
+
+    cp .env.example .env
+
+    echo ".env: created"
+else
+    echo ".env: already exists"
+fi
+
+# ============================================================
+# Make scripts executable
+# ============================================================
+
+chmod +x \
+    clickhouse/scripts/setup-ontime.sh \
+    clickhouse/init-scripts/init-ontime.sh
 
 # ============================================================
 # Docker
 # ============================================================
 
-echo "Checking Docker..."
+ensure_docker
 
-if ! command -v docker >/dev/null 2>&1; then
+# ============================================================
+# Validate Docker Compose
+# ============================================================
 
-  echo "Docker: not found"
+header "Checking Docker Compose configuration"
 
-  install_docker
-
+if ! "${DOCKER[@]}" compose config >/dev/null; then
+    fail "docker-compose.yml is invalid."
 fi
 
-configure_docker_command
-check_docker_compose
-
-echo "Docker: $("${DOCKER[@]}" --version)"
-echo "Docker Compose: $("${DOCKER[@]}" compose version --short)"
-echo "Docker daemon: OK"
-
-# ============================================================
-# Validate project
-# ============================================================
-
-print_header "Checking project files"
-
-[[ -f "docker-compose.yml" ]] \
-  || fail "docker-compose.yml was not found."
-
-[[ -f "datasources.xml" ]] \
-  || fail "datasources.xml was not found."
-
-[[ -f "schema/OnTime.xml" ]] \
-  || fail "schema/OnTime.xml was not found."
-
-[[ -f "clickhouse/init-scripts/init-ontime.sh" ]] \
-  || fail "clickhouse/init-scripts/init-ontime.sh was not found."
-
-[[ -f "$ONTIME_SETUP" ]] \
-  || fail "$ONTIME_SETUP was not found."
-
-if ! dc config >/dev/null; then
-  fail "docker-compose.yml is invalid."
-fi
-
-echo "Project files: OK"
-
-# ============================================================
-# Script permissions
-# ============================================================
-
-chmod +x "$ONTIME_SETUP"
-chmod +x clickhouse/init-scripts/init-ontime.sh
+echo "Docker Compose configuration: OK"
 
 # ============================================================
 # Download OnTime sample
 # ============================================================
 
-print_header "Preparing OnTime sample dataset"
+header "Preparing OnTime sample dataset"
 
-"$ONTIME_SETUP" --sample
+if ! ./clickhouse/scripts/setup-ontime.sh --sample; then
+    fail "Failed to prepare the OnTime sample dataset."
+fi
 
 # ============================================================
 # Start containers
 # ============================================================
 
-print_header "Starting containers"
+header "Starting containers"
 
-if ! dc up -d; then
+if ! "${DOCKER[@]}" compose up -d; then
+    echo
+    echo "Docker Compose failed."
 
-  echo
-  echo "Docker Compose failed."
+    echo
+    echo "ClickHouse logs:"
+    "${DOCKER[@]}" compose logs --tail=50 clickhouse || true
 
-  echo
-  echo "ClickHouse logs:"
-  dc logs --tail=50 clickhouse || true
+    echo
+    echo "OnTime initialization logs:"
+    "${DOCKER[@]}" compose logs ontime-init || true
 
-  echo
-  echo "OnTime initialization logs:"
-  dc logs ontime-init || true
+    echo
+    echo "eMondrian logs:"
+    "${DOCKER[@]}" compose logs --tail=50 eMondrian || true
 
-  echo
-  echo "eMondrian logs:"
-  dc logs --tail=50 eMondrian || true
-
-  fail "Failed to start eMondrian Community."
-
+    fail "Failed to start eMondrian Community."
 fi
 
 # ============================================================
 # Verify ClickHouse
 # ============================================================
 
-print_header "Checking ClickHouse"
+header "Checking ClickHouse"
 
-if ! dc exec -T clickhouse \
-  clickhouse-client \
-  --query="SELECT 1" \
-  >/dev/null 2>&1; then
+if ! "${DOCKER[@]}" compose exec -T clickhouse \
+    clickhouse-client \
+    --query="SELECT 1" \
+    >/dev/null; then
 
-  dc logs --tail=50 clickhouse || true
+    "${DOCKER[@]}" compose logs --tail=50 clickhouse || true
 
-  fail "ClickHouse is not available."
-
+    fail "ClickHouse is not available."
 fi
 
 echo "ClickHouse: OK"
@@ -345,26 +366,25 @@ echo "ClickHouse: OK"
 
 echo "Checking OnTime initialization..."
 
-ONTIME_INIT_CONTAINER="$(dc ps -aq ontime-init)"
+ONTIME_INIT_CONTAINER="$(
+    "${DOCKER[@]}" compose ps -aq ontime-init
+)"
 
-if [[ -z "$ONTIME_INIT_CONTAINER" ]]; then
-  fail "OnTime initialization container was not created."
+if [ -z "$ONTIME_INIT_CONTAINER" ]; then
+    fail "OnTime initialization container was not created."
 fi
 
 ONTIME_EXIT_CODE="$(
-  docker_cli inspect \
-    --format='{{.State.ExitCode}}' \
-    "$ONTIME_INIT_CONTAINER"
+    "${DOCKER[@]}" inspect \
+        --format='{{.State.ExitCode}}' \
+        "$ONTIME_INIT_CONTAINER"
 )"
 
-if [[ "$ONTIME_EXIT_CODE" != "0" ]]; then
+if [ "$ONTIME_EXIT_CODE" != "0" ]; then
+    echo
+    "${DOCKER[@]}" compose logs ontime-init || true
 
-  echo
-
-  dc logs ontime-init || true
-
-  fail "OnTime initialization failed with exit code $ONTIME_EXIT_CODE."
-
+    fail "OnTime initialization failed with exit code $ONTIME_EXIT_CODE."
 fi
 
 echo "OnTime initialization: OK"
@@ -374,75 +394,73 @@ echo "OnTime initialization: OK"
 # ============================================================
 
 ONTIME_ROWS="$(
-  dc exec -T clickhouse \
-    clickhouse-client \
-    --query="SELECT count() FROM ontime" |
-  tr -d '[:space:]'
+    "${DOCKER[@]}" compose exec -T clickhouse \
+        clickhouse-client \
+        --query="SELECT count() FROM ontime" |
+        tr -d '[:space:]'
 )"
 
-if [[ -z "$ONTIME_ROWS" || "$ONTIME_ROWS" == "0" ]]; then
-  fail "OnTime table does not contain any rows."
+if [ -z "$ONTIME_ROWS" ]; then
+    fail "Could not read the OnTime row count."
 fi
 
-echo "OnTime rows: $(printf "%'d" "$ONTIME_ROWS")"
+if ! [[ "$ONTIME_ROWS" =~ ^[0-9]+$ ]]; then
+    fail "Unexpected OnTime row count: $ONTIME_ROWS"
+fi
+
+if [ "$ONTIME_ROWS" -eq 0 ]; then
+    fail "OnTime table does not contain any rows."
+fi
+
+echo "OnTime rows: $ONTIME_ROWS"
 
 # ============================================================
 # Wait for eMondrian
 # ============================================================
 
-print_header "Waiting for eMondrian"
+header "Waiting for eMondrian"
 
 MAX_ATTEMPTS=120
-ATTEMPT=0
 
-while true; do
+for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+    EMONDRIAN_CONTAINER="$(
+        "${DOCKER[@]}" compose ps -q eMondrian
+    )"
 
-  EMONDRIAN_CONTAINER="$(dc ps -aq eMondrian)"
+    if [ -z "$EMONDRIAN_CONTAINER" ]; then
+        "${DOCKER[@]}" compose logs --tail=100 eMondrian || true
+        fail "eMondrian container was not created."
+    fi
 
-  if [[ -z "$EMONDRIAN_CONTAINER" ]]; then
+    HEALTH="$(
+        "${DOCKER[@]}" inspect \
+            --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+            "$EMONDRIAN_CONTAINER"
+    )"
 
-    dc logs --tail=100 eMondrian || true
+    if [ "$HEALTH" = "healthy" ]; then
+        break
+    fi
 
-    fail "eMondrian container was not created."
+    if \
+        [ "$HEALTH" = "unhealthy" ] ||
+        [ "$HEALTH" = "exited" ] ||
+        [ "$HEALTH" = "dead" ]; then
 
-  fi
+        echo
+        "${DOCKER[@]}" compose logs --tail=100 eMondrian || true
 
-  HEALTH="$(
-    docker_cli inspect \
-      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-      "$EMONDRIAN_CONTAINER"
-  )"
+        fail "eMondrian failed to start. Status: $HEALTH."
+    fi
 
-  if [[ "$HEALTH" == "healthy" ]]; then
-    break
-  fi
+    if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+        echo
+        "${DOCKER[@]}" compose logs --tail=100 eMondrian || true
 
-  if [[ "$HEALTH" == "unhealthy" \
-     || "$HEALTH" == "exited" \
-     || "$HEALTH" == "dead" ]]; then
+        fail "eMondrian did not become healthy after $MAX_ATTEMPTS seconds."
+    fi
 
-    echo
-
-    dc logs --tail=100 eMondrian || true
-
-    fail "eMondrian failed to start. Status: $HEALTH."
-
-  fi
-
-  ATTEMPT=$((ATTEMPT + 1))
-
-  if (( ATTEMPT >= MAX_ATTEMPTS )); then
-
-    echo
-
-    dc logs --tail=100 eMondrian || true
-
-    fail "eMondrian did not become healthy after ${MAX_ATTEMPTS} seconds."
-
-  fi
-
-  sleep 1
-
+    sleep 1
 done
 
 echo "eMondrian: healthy"
@@ -451,7 +469,7 @@ echo "eMondrian: healthy"
 # Finished
 # ============================================================
 
-print_header "eMondrian Community is ready"
+header "eMondrian Community is ready"
 
 echo "Web interface:"
 echo "  http://localhost"
@@ -467,18 +485,10 @@ echo "  - OnTime"
 echo
 
 echo "OnTime rows:"
-echo "  $(printf "%'d" "$ONTIME_ROWS")"
+echo "  $ONTIME_ROWS"
 echo
 
 echo "Containers:"
-dc ps
+"${DOCKER[@]}" compose ps
+
 echo
-
-if (( DOCKER_INSTALLED_BY_SCRIPT == 1 )) \
-  && [[ "${DOCKER[0]}" == "sudo" ]]; then
-
-  echo "Docker was installed successfully."
-  echo "Docker commands for this setup were executed through sudo."
-  echo
-
-fi

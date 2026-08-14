@@ -24,24 +24,27 @@ It provides an analytical layer on top of relational databases, allowing users t
 
 ---
 
-## Prerequisites
-
-- [Docker Engine 20.10+](https://docs.docker.com/get-docker/) – required to run eMondrian
-- Docker Compose v2 (included with Docker Desktop)
-
-Docker must be installed and running on your system.
-
----
-
 ## Quick Start
 
-Clone the repository and start eMondrian using Docker Compose:
+Clone the repository:
 
 ```bash
 git clone https://github.com/eMondrian/emondrian-community.git
 cd emondrian-community
-cp .env.example .env
-docker compose up -d
+```
+
+### Linux
+
+```bash
+./setup.sh
+```
+
+### Windows
+
+Run from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows-setup.ps1
 ```
 
 Once started, open the main page in your browser:
@@ -96,4 +99,3 @@ More information: https://bisolutions.dev
 
 Maintained by the eMondrian Team  
 https://bisolutions.dev
-
