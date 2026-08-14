@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Schema name="OnTime">
+
+  <View alias="dim_airline">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT Reporting_Airline
+      FROM ontime
+      GROUP BY Reporting_Airline
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_time">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT
+        Year * 100 + Month AS YearMonth,
+        Year,
+        Quarter,
+        Month,
+        concat('Q', toString(Quarter)) AS QuarterName,
+        CASE Month
+          WHEN 1  THEN 'January'    WHEN 2  THEN 'February'  WHEN 3  THEN 'March'
+          WHEN 4  THEN 'April'      WHEN 5  THEN 'May'       WHEN 6  THEN 'June'
+          WHEN 7  THEN 'July'       WHEN 8  THEN 'August'    WHEN 9  THEN 'September'
+          WHEN 10 THEN 'October'    WHEN 11 THEN 'November'  WHEN 12 THEN 'December'
+        END AS MonthName
+      FROM ontime
+      GROUP BY Year, Quarter, Month
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_day_of_week">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT
+        DayOfWeek AS DayOfWeekKey,
+        CASE DayOfWeek
+          WHEN 1 THEN 'Monday'    WHEN 2 THEN 'Tuesday'  WHEN 3 THEN 'Wednesday'
+          WHEN 4 THEN 'Thursday'  WHEN 5 THEN 'Friday'   WHEN 6 THEN 'Saturday'
+          WHEN 7 THEN 'Sunday'
+        END AS DayOfWeekName
+      FROM ontime
+      GROUP BY DayOfWeek
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_origin_airport">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT
+        toString(Origin)   AS AirportCode,
+        OriginCityName     AS CityName,
+        OriginStateName    AS StateName
+      FROM ontime
+      GROUP BY Origin, OriginCityName, OriginStateName
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_dest_airport">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT
+        toString(Dest)   AS AirportCode,
+        DestCityName     AS CityName,
+        DestStateName    AS StateName
+      FROM ontime
+      GROUP BY Dest, DestCityName, DestStateName
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_distance_group">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT
+        toUInt8(DistanceGroup) AS DistanceGroupKey,
+        CASE toUInt8(DistanceGroup)
+          WHEN 1  THEN 'Less than 250 mi'  WHEN 2  THEN '250-499 mi'
+          WHEN 3  THEN '500-749 mi'        WHEN 4  THEN '750-999 mi'
+          WHEN 5  THEN '1000-1249 mi'      WHEN 6  THEN '1250-1499 mi'
+          WHEN 7  THEN '1500-1749 mi'      WHEN 8  THEN '1750-1999 mi'
+          WHEN 9  THEN '2000-2249 mi'      WHEN 10 THEN '2250-2499 mi'
+          WHEN 11 THEN '2500 mi and more'
+        END AS DistanceGroupName
+      FROM ontime
+      GROUP BY toUInt8(DistanceGroup)
+    ]]></SQL>
+  </View>
+
+  <View alias="dim_tail">
+    <SQL dialect="clickhouse"><![CDATA[
+      SELECT Tail_Number
+      FROM ontime
+      WHERE match(Tail_Number, '^[A-Za-z0-9@\-/#?]*$')
+      GROUP BY Tail_Number
+    ]]></SQL>
+  </View>
+
+  <Cube name="OnTime (attributes)" cache="true" enabled="true">
+
+    <View alias="fact">
+      <SQL dialect="clickhouse"><![CDATA[
+        SELECT
+          Year * 100 + Month                       AS YearMonth,
+          DayOfWeek,
+          Reporting_Airline,
+          toString(Origin)                         AS OriginCode,
+          toString(Dest)                           AS DestCode,
+          toUInt8(DistanceGroup)                   AS DistanceGroupKey,
+          Tail_Number,
+          Flights,
+          DepDelayMinutes,
+          ArrDelayMinutes,
+          ArrDel15,
+          Cancelled,
+          Diverted
+        FROM ontime
+      ]]></SQL>
+    </View>
+
+    <Dimension name="Airline" foreignKey="Reporting_Airline"
+               table="dim_airline" primaryKey="Reporting_Airline">
+
+      <DimensionAttribute name="Airline">
+        <KeyColumn columnName="Reporting_Airline" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Airlines">
+        <Level name="Airline" uniqueMembers="true" sourceAttribute="Airline"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Time" foreignKey="YearMonth"
+               table="dim_time" primaryKey="YearMonth">
+
+      <DimensionAttribute name="Year">
+        <KeyColumn columnName="Year" type="Numeric" dataType="Numeric"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Quarter">
+        <KeyColumn columnName="Quarter" type="Numeric" dataType="Numeric"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Month">
+        <KeyColumn columnName="Month" type="Numeric" dataType="Numeric"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Time">
+        <Level name="Year"    uniqueMembers="true"  sourceAttribute="Year"/>
+        <Level name="Quarter" uniqueMembers="false" sourceAttribute="Quarter" nameColumn="QuarterName"/>
+        <Level name="Month"   uniqueMembers="false" sourceAttribute="Month"   nameColumn="MonthName"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Day of Week" foreignKey="DayOfWeek"
+               table="dim_day_of_week" primaryKey="DayOfWeekKey">
+
+      <DimensionAttribute name="Day of Week">
+        <KeyColumn columnName="DayOfWeekKey" type="Numeric" dataType="Numeric"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Days">
+        <Level name="Day of Week" uniqueMembers="true" sourceAttribute="Day of Week" nameColumn="DayOfWeekName"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Origin Airport" foreignKey="OriginCode"
+               table="dim_origin_airport" primaryKey="AirportCode">
+
+      <DimensionAttribute name="Origin State">
+        <KeyColumn columnName="StateName" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Origin City">
+        <KeyColumn columnName="CityName" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Origin Airport">
+        <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Origins">
+        <Level name="State"   uniqueMembers="true"  sourceAttribute="Origin State"/>
+        <Level name="City"    uniqueMembers="false" sourceAttribute="Origin City"/>
+        <Level name="Airport" uniqueMembers="true"  sourceAttribute="Origin Airport"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Destination Airport" foreignKey="DestCode"
+               table="dim_dest_airport" primaryKey="AirportCode">
+
+      <DimensionAttribute name="Dest State">
+        <KeyColumn columnName="StateName" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Dest City">
+        <KeyColumn columnName="CityName" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <DimensionAttribute name="Dest Airport">
+        <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Destinations">
+        <Level name="State"   uniqueMembers="true"  sourceAttribute="Dest State"/>
+        <Level name="City"    uniqueMembers="false" sourceAttribute="Dest City"/>
+        <Level name="Airport" uniqueMembers="true"  sourceAttribute="Dest Airport"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Distance Group" foreignKey="DistanceGroupKey"
+               table="dim_distance_group" primaryKey="DistanceGroupKey">
+
+      <DimensionAttribute name="Distance Group">
+        <KeyColumn columnName="DistanceGroupKey" type="Numeric" dataType="Numeric"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Distances">
+        <Level name="Distance Group" uniqueMembers="true" sourceAttribute="Distance Group" nameColumn="DistanceGroupName"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Dimension name="Tail Number" foreignKey="Tail_Number"
+               table="dim_tail" primaryKey="Tail_Number">
+
+      <DimensionAttribute name="Tail Number">
+        <KeyColumn columnName="Tail_Number" type="String" dataType="String"/>
+      </DimensionAttribute>
+
+      <Hierarchy hasAll="true" allMemberName="All Tails">
+        <Level name="Tail Number" uniqueMembers="true" sourceAttribute="Tail Number"/>
+      </Hierarchy>
+    </Dimension>
+
+    <Measure name="Flights"    column="Flights"   aggregator="sum" formatString="#,###"/>
+    <Measure name="Cancelled"  column="Cancelled" aggregator="sum" formatString="#,###"/>
+    <Measure name="Diverted"   column="Diverted"  aggregator="sum" formatString="#,###"/>
+
+    <Measure name="Late Arrivals" column="ArrDel15" aggregator="sum" formatString="#,###"/>
+
+    <Measure name="Total Arr Delay" column="ArrDelayMinutes" aggregator="sum" visible="false"/>
+    <Measure name="Total Dep Delay" column="DepDelayMinutes" aggregator="sum" visible="false"/>
+
+    <Measure name="Distinct Tail Numbers" column="Tail_Number" aggregator="distinct-count" formatString="#,###"/>
+
+    <CalculatedMember name="Avg Arr Delay" dimension="Measures" formatString="#,##0.00">
+      <Formula>[Measures].[Total Arr Delay] / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+    <CalculatedMember name="Avg Dep Delay" dimension="Measures" formatString="#,##0.00">
+      <Formula>[Measures].[Total Dep Delay] / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+    <CalculatedMember name="Cancellation Rate" dimension="Measures" formatString="0.00%">
+      <Formula>[Measures].[Cancelled] / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+    <CalculatedMember name="Diversion Rate" dimension="Measures" formatString="0.00%">
+      <Formula>[Measures].[Diverted] / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+    <CalculatedMember name="Delay Rate" dimension="Measures" formatString="0.00%">
+      <Formula>[Measures].[Late Arrivals] / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+    <CalculatedMember name="On-Time Rate" dimension="Measures" formatString="0.00%">
+      <Formula>1 - ([Measures].[Late Arrivals] + [Measures].[Cancelled] + [Measures].[Diverted]) / [Measures].[Flights]</Formula>
+    </CalculatedMember>
+
+  </Cube>
+</Schema>
