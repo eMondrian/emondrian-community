@@ -24,6 +24,16 @@ It provides an analytical layer on top of relational databases, allowing users t
 
 ---
 
+## Prerequisites
+
+- Git
+- Internet connection
+- Windows 10/11 or a supported Linux distribution
+
+Docker is installed automatically by the quick-start script if it is not already available.
+
+---
+
 ## Quick Start
 
 Clone the repository:
@@ -42,6 +52,12 @@ cd emondrian-community
 ### Windows
 
 Run from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows-setup.ps1
+```
+
+If WSL 2 is not installed or needs to be updated, the setup script may require a Windows restart. After restarting Windows, open PowerShell in the project directory and run the same command again:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\windows-setup.ps1
