@@ -13,6 +13,8 @@ services:
       - ./modules:/usr/local/tomcat/webapps/emondrian/modules
     environment:
       TZ: Europe/Zurich
+      # Tomcat defaults to 0027, which makes ./logs unreadable to the host user.
+      UMASK: "0022"
       #JAVA_TOOL_OPTIONS: "$JAVA_TOOL_OPTIONS -Xms2g -Xmx4g -XX:+UseG1GC"
     restart: unless-stopped
     networks:

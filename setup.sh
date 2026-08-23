@@ -203,7 +203,20 @@ configure_docker_command() {
         fi
     fi
 
-    fail "Docker daemon is not available."
+    if [ -S /var/run/docker.sock ]; then
+        fail "Docker is installed and running, but this user is not allowed to talk to it.
+If Docker was just installed, add yourself to the docker group and start a new session:
+
+    sudo usermod -aG docker \$USER
+    newgrp docker
+
+Then run ./setup.sh again."
+    fi
+
+    fail "The Docker daemon is not available.
+Start it and run ./setup.sh again, for example:
+
+    sudo systemctl start docker"
 }
 
 ensure_docker() {
@@ -254,6 +267,7 @@ REQUIRED_FILES=(
     ".env.example"
     "docker-compose.yml"
     "datasources.xml"
+    "schema/Foodmart.xml"
     "schema/OnTime.xml"
     "clickhouse/init-scripts/init-ontime.sh"
     "clickhouse/scripts/setup-ontime.sh"
@@ -322,6 +336,11 @@ fi
 # ============================================================
 
 header "Starting containers"
+
+# Create the bind-mounted log directory first. Left to Docker it is created as
+# root, and then the clone cannot be deleted without sudo.
+mkdir -p logs
+
 
 if ! "${DOCKER[@]}" compose up -d; then
     echo
@@ -464,6 +483,39 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
 done
 
 echo "eMondrian: healthy"
+
+# ============================================================
+# Wait for the web front door
+# ============================================================
+
+header "Waiting for the web interface"
+
+# Override if the front door was remapped to another port in docker-compose.yml.
+WEB_URL="${EMONDRIAN_URL:-http://localhost/}"
+
+MAX_ATTEMPTS=60
+
+for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+    if curl -fs -o /dev/null "$WEB_URL"; then
+        break
+    fi
+
+    if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+        echo
+        "${DOCKER[@]}" compose logs --tail=50 emondrian_entry || true
+
+        echo
+        echo "The engine is running, but $WEB_URL is not responding."
+        echo "Common causes: the web container failed to start (see its log above),"
+        echo "or another program is already using port 80."
+
+        fail "The web interface did not come up after $MAX_ATTEMPTS seconds."
+    fi
+
+    sleep 1
+done
+
+echo "Web interface: OK"
 
 # ============================================================
 # Finished

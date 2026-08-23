@@ -426,6 +426,7 @@ $RequiredFiles = @(
     ".env.example",
     "docker-compose.yml",
     "datasources.xml",
+    "schema\Foodmart.xml",
     "schema\OnTime.xml",
     "clickhouse\init-scripts\init-ontime.sh",
     "clickhouse\scripts\setup-ontime.ps1"
