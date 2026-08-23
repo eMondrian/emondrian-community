@@ -296,6 +296,39 @@ else
 fi
 
 # ============================================================
+# Web front door port
+# ============================================================
+
+# Shell environment wins over .env, matching how Docker Compose itself
+# resolves ${EMONDRIAN_PORT}.
+if [ -z "${EMONDRIAN_PORT:-}" ] && [ -f ".env" ]; then
+    EMONDRIAN_PORT="$(
+        grep -E '^[[:space:]]*EMONDRIAN_PORT=' .env |
+        tail -1 |
+        cut -d= -f2- |
+        tr -d '"'"'"'\r[:space:]'
+    )"
+fi
+
+EMONDRIAN_PORT="${EMONDRIAN_PORT:-80}"
+
+if ! [[ "$EMONDRIAN_PORT" =~ ^[0-9]+$ ]] || [ "$EMONDRIAN_PORT" -lt 1 ] || [ "$EMONDRIAN_PORT" -gt 65535 ]; then
+    fail "EMONDRIAN_PORT must be a port number, got: $EMONDRIAN_PORT"
+fi
+
+export EMONDRIAN_PORT
+
+WEB_URL="http://localhost:${EMONDRIAN_PORT}/"
+
+if [ "$EMONDRIAN_PORT" = "80" ]; then
+    WEB_BASE="http://localhost"
+else
+    WEB_BASE="http://localhost:${EMONDRIAN_PORT}"
+fi
+
+echo "Web front door port: $EMONDRIAN_PORT"
+
+# ============================================================
 # Make scripts executable
 # ============================================================
 
@@ -336,6 +369,33 @@ fi
 # ============================================================
 
 header "Starting containers"
+
+# Refuse early if something else holds the port. Without this the failure
+# arrives either as a raw compose bind error or, worse, as a timeout further
+# down that blames the wrong thing. A container of ours already holding it is
+# fine - that is just a re-run.
+if (echo >"/dev/tcp/127.0.0.1/$EMONDRIAN_PORT") 2>/dev/null; then
+
+    # Our own web container already on this port is just a re-run. Compare the
+    # actual published binding, not merely whether the container is up: with a
+    # changed EMONDRIAN_PORT it is up on the *old* port and the new one may
+    # still belong to something else.
+    OWN_BINDING="$("${DOCKER[@]}" compose port emondrian_entry 80 2>/dev/null || true)"
+
+    case "$OWN_BINDING" in
+        *:"$EMONDRIAN_PORT")
+            ;;
+        *)
+            fail "Port $EMONDRIAN_PORT is already in use by another program.
+
+Free it, or pick a different port by setting EMONDRIAN_PORT in .env:
+
+    EMONDRIAN_PORT=8081
+
+Then run ./setup.sh again."
+            ;;
+    esac
+fi
 
 # Create the bind-mounted log directory first. Left to Docker it is created as
 # root, and then the clone cannot be deleted without sudo.
@@ -490,9 +550,6 @@ echo "eMondrian: healthy"
 
 header "Waiting for the web interface"
 
-# Override if the front door was remapped to another port in docker-compose.yml.
-WEB_URL="${EMONDRIAN_URL:-http://localhost/}"
-
 MAX_ATTEMPTS=60
 
 for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
@@ -507,7 +564,7 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
         echo
         echo "The engine is running, but $WEB_URL is not responding."
         echo "Common causes: the web container failed to start (see its log above),"
-        echo "or another program is already using port 80."
+        echo "or another program is already using port $EMONDRIAN_PORT."
 
         fail "The web interface did not come up after $MAX_ATTEMPTS seconds."
     fi
@@ -524,11 +581,11 @@ echo "Web interface: OK"
 header "eMondrian Community is ready"
 
 echo "Web interface:"
-echo "  http://localhost"
+echo "  $WEB_BASE"
 echo
 
 echo "XMLA endpoint:"
-echo "  http://localhost/xmla"
+echo "  $WEB_BASE/xmla"
 echo
 
 echo "Available catalogs:"

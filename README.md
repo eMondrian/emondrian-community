@@ -30,7 +30,7 @@ It provides an analytical layer on top of relational databases, allowing users t
 - Internet connection
 - Windows 10/11 or a supported Linux distribution
 - Administrator / `sudo` rights — needed to install Docker and to start containers
-- **Port 80 must be free.** The web front door binds it; another web server there will stop the setup
+- **Port 80 must be free** — or pick another one. The web front door binds it, so an existing web server (IIS, Apache, nginx) will stop the setup; set `EMONDRIAN_PORT` in `.env` to use a different port instead
 - About **2 GB** of free disk space, and roughly **700 MB** of downloads on the first run (container images, plus a ~26 MB sample dataset that expands to ~230 MB on disk)
 
 Docker is installed automatically by the quick-start script if it is not already available.
@@ -78,6 +78,15 @@ Once started, open the main page in your browser:
 ```
 http://localhost
 ```
+
+If port 80 is already taken on your machine, set a different one before running
+the script — copy `.env.example` to `.env` and change:
+
+```
+EMONDRIAN_PORT=8081
+```
+
+Every address below then uses that port, e.g. `http://localhost:8081/xmla`.
 
 ---
 
