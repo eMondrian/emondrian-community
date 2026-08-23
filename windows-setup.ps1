@@ -463,6 +463,52 @@ else {
 }
 
 # ============================================================
+# Web front door port
+# ============================================================
+
+# Shell environment wins over .env, matching how Docker Compose itself
+# resolves ${EMONDRIAN_PORT}.
+$EmondrianPort = $env:EMONDRIAN_PORT
+
+if ([string]::IsNullOrWhiteSpace($EmondrianPort) -and (Test-Path $EnvFile)) {
+    $PortLine = Select-String -Path $EnvFile -Pattern '^\s*EMONDRIAN_PORT\s*=' |
+        Select-Object -Last 1
+
+    if ($null -ne $PortLine) {
+        $EmondrianPort = ($PortLine.Line -split "=", 2)[1].Trim().Trim('"').Trim("'")
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($EmondrianPort)) {
+    $EmondrianPort = "80"
+}
+
+$PortNumber = 0
+
+if (
+    -not [int]::TryParse($EmondrianPort, [ref]$PortNumber) -or
+    $PortNumber -lt 1 -or
+    $PortNumber -gt 65535
+) {
+    Fail "EMONDRIAN_PORT must be a port number, got: $EmondrianPort"
+}
+
+# Compose reads .env by itself; exporting this makes an EMONDRIAN_PORT passed
+# in the environment reach Compose as well.
+$env:EMONDRIAN_PORT = $PortNumber
+
+$WebUrl = "http://localhost:$PortNumber/"
+
+if ($PortNumber -eq 80) {
+    $WebBase = "http://localhost"
+}
+else {
+    $WebBase = "http://localhost:$PortNumber"
+}
+
+Write-Host "Web front door port: $PortNumber"
+
+# ============================================================
 # WSL
 # ============================================================
 
@@ -503,6 +549,45 @@ Write-Header "Preparing OnTime sample dataset"
 # ============================================================
 
 Write-Header "Starting containers"
+
+# Refuse early if something else holds the port. Without this the failure
+# arrives as a raw compose bind error, or later as a timeout that blames the
+# wrong thing. A container of ours already on it is just a re-run - compare the
+# published binding, not merely whether the container is up, because with a
+# changed port it is up on the old one.
+$PortInUse = $false
+
+try {
+    $TcpClient = New-Object System.Net.Sockets.TcpClient
+    $PortInUse = $TcpClient.ConnectAsync("127.0.0.1", $PortNumber).Wait(1000)
+    $TcpClient.Close()
+}
+catch {
+    $PortInUse = $false
+}
+
+if ($PortInUse) {
+    $OwnBinding = ""
+
+    try {
+        $OwnBinding = (& docker compose port emondrian_entry 80 | Out-String).Trim()
+    }
+    catch {
+        $OwnBinding = ""
+    }
+
+    if ($OwnBinding -notmatch ":$PortNumber$") {
+        Fail @"
+Port $PortNumber is already in use by another program.
+
+Free it, or pick a different port by setting EMONDRIAN_PORT in .env:
+
+    EMONDRIAN_PORT=8081
+
+Then run this script again.
+"@
+    }
+}
 
 & docker compose up -d
 
@@ -651,17 +736,56 @@ for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
 Write-Host "eMondrian: healthy"
 
 # ============================================================
+# Wait for the web front door
+# ============================================================
+
+Write-Header "Waiting for the web interface"
+
+$MaxAttempts = 60
+$WebReady = $false
+
+for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    try {
+        Invoke-WebRequest `
+            -Uri $WebUrl `
+            -UseBasicParsing `
+            -TimeoutSec 5 | Out-Null
+
+        $WebReady = $true
+        break
+    }
+    catch {
+        Start-Sleep -Seconds 1
+    }
+}
+
+if (-not $WebReady) {
+    Write-Host ""
+
+    & docker compose logs --tail=50 emondrian_entry
+
+    Write-Host ""
+    Write-Host "The engine is running, but $WebUrl is not responding."
+    Write-Host "Common causes: the web container failed to start (see its log above),"
+    Write-Host "or another program is already using port $PortNumber."
+
+    Fail "The web interface did not come up after $MaxAttempts seconds."
+}
+
+Write-Host "Web interface: OK"
+
+# ============================================================
 # Finished
 # ============================================================
 
 Write-Header "eMondrian Community is ready"
 
 Write-Host "Web interface:"
-Write-Host "  http://localhost"
+Write-Host "  $WebBase"
 Write-Host ""
 
 Write-Host "XMLA endpoint:"
-Write-Host "  http://localhost/xmla"
+Write-Host "  $WebBase/xmla"
 Write-Host ""
 
 Write-Host "Available catalogs:"
