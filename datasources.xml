@@ -12,7 +12,10 @@
         <Catalog name="FoodMart">
             <Definition>/WEB-INF/schema/Foodmart.xml</Definition>
         </Catalog>
+        <Catalog name="OnTime">
+            <DataSourceInfo>Provider=mondrian;Jdbc=jdbc:clickhouse://clickhouse:8123/default?user=default&amp;password=&amp;max_query_size=100000000&amp;max_ast_elements=100000000&amp;socket_timeout=300000&amp;max_expanded_ast_elements=100000000;JdbcDrivers=com.clickhouse.jdbc.ClickHouseDriver</DataSourceInfo>
+            <Definition>/WEB-INF/schema/OnTime.xml</Definition>
+        </Catalog>
     </Catalogs>
   </DataSource>
 </DataSources>
-
