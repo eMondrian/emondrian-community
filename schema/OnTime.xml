@@ -96,6 +96,9 @@
       <SQL dialect="clickhouse"><![CDATA[
         SELECT
           Year * 100 + Month                       AS YearMonth,
+          Year,
+          Quarter,
+          Month,
           DayOfWeek,
           Reporting_Airline,
           toString(Origin)                         AS OriginCode,
@@ -115,6 +118,10 @@
     <Dimension name="Airline" foreignKey="Reporting_Airline"
                table="dim_airline" primaryKey="Reporting_Airline">
 
+      <!-- AttributeMapping must precede DimensionAttribute/Hierarchy: CubeDimension's
+           children are parsed positionally. See context/native_query.md §10. -->
+      <AttributeMapping attribute="Airline" factColumn="Reporting_Airline"/>
+
       <DimensionAttribute name="Airline">
         <KeyColumn columnName="Reporting_Airline" type="String" dataType="String"/>
       </DimensionAttribute>
@@ -126,6 +133,10 @@
 
     <Dimension name="Time" foreignKey="YearMonth"
                table="dim_time" primaryKey="YearMonth">
+
+      <AttributeMapping attribute="Year"    factColumn="Year"/>
+      <AttributeMapping attribute="Quarter" factColumn="Quarter"/>
+      <AttributeMapping attribute="Month"   factColumn="Month"/>
 
       <DimensionAttribute name="Year">
         <KeyColumn columnName="Year" type="Numeric" dataType="Numeric"/>
@@ -149,6 +160,8 @@
     <Dimension name="Day of Week" foreignKey="DayOfWeek"
                table="dim_day_of_week" primaryKey="DayOfWeekKey">
 
+      <AttributeMapping attribute="Day of Week" factColumn="DayOfWeek"/>
+
       <DimensionAttribute name="Day of Week">
         <KeyColumn columnName="DayOfWeekKey" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
@@ -160,6 +173,14 @@
 
     <Dimension name="Origin Airport" foreignKey="OriginCode"
                table="dim_origin_airport" primaryKey="AirportCode">
+
+      <!-- Deliberately NOT mapped, though the fact view carries OriginCode.
+           dim_origin_airport groups by (Origin, OriginCityName, OriginStateName), and 6 codes
+           (SJU, STT, STX, GUM, USA, SPN) carry two city/state spellings, so AirportCode is not
+           unique in the view and the fact->dim join fans out. Skipping that join via a
+           factColumn would silently change results (for 2022: 6,767,533 -> 6,729,125 Flights).
+           Fix the view's key first; only then is a mapping safe.
+           Origin City / Origin State are absent from the fact view entirely. -->
 
       <DimensionAttribute name="Origin State">
         <KeyColumn columnName="StateName" type="String" dataType="String"/>
@@ -183,6 +204,10 @@
     <Dimension name="Destination Airport" foreignKey="DestCode"
                table="dim_dest_airport" primaryKey="AirportCode">
 
+      <!-- Deliberately NOT mapped, for the same reason as Origin Airport above: the same 6
+           codes carry two city/state spellings, so AirportCode is not unique in
+           dim_dest_airport. Dest City / Dest State are absent from the fact view. -->
+
       <DimensionAttribute name="Dest State">
         <KeyColumn columnName="StateName" type="String" dataType="String"/>
       </DimensionAttribute>
@@ -205,6 +230,8 @@
     <Dimension name="Distance Group" foreignKey="DistanceGroupKey"
                table="dim_distance_group" primaryKey="DistanceGroupKey">
 
+      <AttributeMapping attribute="Distance Group" factColumn="DistanceGroupKey"/>
+
       <DimensionAttribute name="Distance Group">
         <KeyColumn columnName="DistanceGroupKey" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
@@ -216,6 +243,11 @@
 
     <Dimension name="Tail Number" foreignKey="Tail_Number"
                table="dim_tail" primaryKey="Tail_Number">
+
+      <!-- Deliberately NOT mapped, though the fact view carries Tail_Number. dim_tail is a
+           *filtered* projection (WHERE match(...)), excluding 2,275 tail numbers / 2,881,129
+           Flights that the fact table still holds. A factColumn skips the join and so stops
+           applying that filter, which would silently change results. -->
 
       <DimensionAttribute name="Tail Number">
         <KeyColumn columnName="Tail_Number" type="String" dataType="String"/>
