@@ -101,9 +101,52 @@ After startup, the following endpoints are available:
 | `http://localhost/client/` | Browser OLAP client — explore the sample cubes without installing anything |
 | `http://localhost/schema-editor/` | Schema editor — create and edit cubes in the browser |
 | `http://localhost/logs/` | Server logs |
+| `http://localhost/emondrian/mcp/sse` | **MCP endpoint** for AI agents — see below |
 
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
+
+---
+
+## Connect an AI agent (MCP)
+
+The server speaks the Model Context Protocol, so an AI agent can list cubes, run
+MDX or DAX, read the schema and tail the logs. The MCP server is part of the
+eMondrian container — there is nothing extra to start.
+
+It is served through the same front door as everything else, on port 80 (or
+whatever `EMONDRIAN_PORT` is set to). Transport is HTTP+SSE.
+
+Claude Code:
+
+```bash
+claude mcp add --transport sse emondrian http://localhost/emondrian/mcp/sse
+```
+
+Any MCP client that speaks HTTP+SSE works the same way — point it at
+`http://localhost/emondrian/mcp/sse`. There are no authentication headers.
+
+The `/emondrian/` prefix is part of the URL and not a typo: the server's SSE
+handshake tells the client to post back to `/emondrian/mcp/message`, so the
+client has to reach that path on this origin.
+
+Things to try once connected:
+
+- *"List the catalogs on this server"* → FoodMart and OnTime
+- *"Run this MDX on catalog FoodMart: SELECT {[Measures].[Org Salary]} ON 0 FROM [HR]"*
+- *"Which Mondrian properties are set on this server?"*
+
+**The MCP tools need a licence that includes the `MCP` module.** They are the one
+part of this edition that is licensed: without it every tool answers
+`Module 'MCP' not found in license modules`, while XML/A, the browser client and
+the schema editor keep working. A trial key issued for DAX alone does not cover
+it — request one with MCP included. Install it on the entry page, or drop the
+`.lic` file into `modules/` and restart the container.
+
+Ten tools are exposed. Four of them — `get_schema`, `validate_schema`,
+`save_schema` and `read_logs` — read or **write** server state rather than query
+data; `save_schema` overwrites a catalog's schema XML. On this edition nothing is
+authenticated, so treat MCP access as administrative access.
 
 ---
 
@@ -161,6 +204,12 @@ The Community Edition ships with **no authentication and no access restrictions*
 anyone who can reach the server can query data, edit schemas and read logs. That
 is deliberate for a local evaluation setup on `http://localhost`. Do not expose
 this configuration to an untrusted network as it stands.
+
+The MCP endpoint deserves its own mention: it is published on the same port as
+the rest, which Docker binds on **all interfaces**, and four of its ten tools
+read or write server state rather than query data — `save_schema` overwrites a
+catalog's schema XML. Treat reaching this port as administrative access, and
+keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost.
 
 ---
 
