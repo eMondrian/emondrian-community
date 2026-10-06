@@ -1,7 +1,7 @@
 eMondrian Community
 Copyright (C) 2020-2026 Sergei Semenkov and contributors
 
-This repository is licensed under the Apache License, Version 2.0 (see LICENSE),
+This repository is licensed under the Eclipse Public License 1.0 (see LICENSE),
 except for the components listed below, which are distributed under their own
 licenses.
 
@@ -34,7 +34,7 @@ licenses.
 
    The module files in modules/ - emondrian-dax-*-obf.jar,
    emondrian-mcp-*.jar, emondrian-license-*.jar - are proprietary and are NOT
-   covered by the Apache License.
+   covered by the Eclipse Public License.
    Copyright (C) 2025-2026 Sergei Semenkov. All rights reserved.
    Use of the DAX and MCP modules requires a valid eMondrian license key
    (a free 30-day evaluation key or a commercial license). Terms are provided
@@ -45,3 +45,7 @@ licenses.
    The Docker images used by this repository include third-party libraries
    (for example JDBC drivers and logging libraries) that are distributed under
    their own licenses.
+
+Versions of this repository published before 2026-10-06 were distributed under
+the Apache License, Version 2.0; those releases remain available under that
+license.

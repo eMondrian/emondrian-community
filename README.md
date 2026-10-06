@@ -215,8 +215,7 @@ keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost.
 
 ## License
 
-This project is distributed under an open-source license.  
-See the `LICENSE` file for details.  
+EPL-1.0 — see `LICENSE` and `NOTICE` (the modules in `modules/` are proprietary).  
 
 ---
 
