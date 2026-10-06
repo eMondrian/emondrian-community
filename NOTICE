@@ -1,0 +1,47 @@
+eMondrian Community
+Copyright (C) 2020-2026 Sergei Semenkov and contributors
+
+This repository is licensed under the Apache License, Version 2.0 (see LICENSE),
+except for the components listed below, which are distributed under their own
+licenses.
+
+1. Mondrian OLAP engine
+
+   The eMondrian server (Docker image emondrian/emondrian) is based on the
+   Mondrian OLAP engine, modified by Sergei Semenkov.
+
+   License: Eclipse Public License 1.0 (EPL-1.0)
+            https://www.eclipse.org/legal/epl-v10.html
+   Source code, including modifications:
+            https://github.com/SergeiSemenkov/mondrian
+
+   Copyright lines as carried by the engine's source headers include:
+   Copyright (C) 2001-2005 Julian Hyde
+   Copyright (C) 2004-2005 TONBELLER AG
+   Copyright (C) 2005-2017 Hitachi Vantara and others
+   Copyright (C) 2021 Sergei Semenkov
+
+2. Sample schema
+
+   schema/Foodmart.xml is derived from the Mondrian FoodMart sample and is
+   licensed under EPL-1.0, as stated in the header of the file:
+
+   Copyright (C) 2000-2005 Julian Hyde
+   Copyright (C) 2005-2011 Pentaho and others
+   Copyright (C) 2020-2021 Sergei Semenkov
+
+3. eMondrian modules
+
+   The module files in modules/ - emondrian-dax-*-obf.jar,
+   emondrian-mcp-*.jar, emondrian-license-*.jar - are proprietary and are NOT
+   covered by the Apache License.
+   Copyright (C) 2025-2026 Sergei Semenkov. All rights reserved.
+   Use of the DAX and MCP modules requires a valid eMondrian license key
+   (a free 30-day evaluation key or a commercial license). Terms are provided
+   with the commercial license; contact contact@bisolutions.dev.
+
+4. Third-party libraries
+
+   The Docker images used by this repository include third-party libraries
+   (for example JDBC drivers and logging libraries) that are distributed under
+   their own licenses.
