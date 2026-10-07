@@ -62,14 +62,26 @@ services:
     entrypoint: ["/bin/bash", "/init-ontime.sh"]
     restart: "no"
 
-  webOlapClient:
-    image: emondrian/webolapclient:0.0.1
-    container_name: web_olap_client
+  olapClient:
+    image: emondrian/webolapclient:1.0
+    container_name: olap_client
+    networks:
+      - app_network
+
+  schemaEditor:
+    image: emondrian/schema-editor:1.0
+    container_name: schema_editor
+    networks:
+      - app_network
+
+  catalogEditor:
+    image: emondrian/catalog-editor:1.0
+    container_name: catalog_editor
     networks:
       - app_network
 
   emondrian_entry:
-    image: emondrian/entry:0.0.4
+    image: emondrian/entry:1.0
     container_name: emondrian_entry
     ports:
       - "${EMONDRIAN_PORT:-80}:80"
@@ -85,7 +97,9 @@ services:
       - app_network
     depends_on:
       - eMondrian
-      - webOlapClient
+      - olapClient
+      - schemaEditor
+      - catalogEditor
 
 networks:
   app_network:

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Front-door entrypoint that adds the MCP route the entry image does not generate.
 #
-# emondrian/entry:0.0.4 has ENTRYPOINT=/docker-entrypoint.d/99-custom-config.sh, a script that
+# emondrian/entry:1.0 has ENTRYPOINT=/docker-entrypoint.d/99-custom-config.sh, a script that
 # writes /etc/nginx/conf.d/default.conf (routes for /xmla, /api/, /logs/, /client/,
-# /schema-editor/ -- no /mcp) and then ends with `exec nginx`. Because it execs, nothing after it
+# /schema-editor/, /catalog-editor/ -- no /mcp) and then ends with `exec nginx`. Because it execs, nothing after it
 # runs: dropping another script into /docker-entrypoint.d/ has no effect, the standard nginx
 # entrypoint loop never executes. So this wrapper runs that generator with its exec line removed,
 # appends the MCP location to what it produced, and starts nginx itself.

@@ -100,6 +100,7 @@ After startup, the following endpoints are available:
 | `http://localhost/xmla` | **XML/A endpoint** for BI tools and client applications |
 | `http://localhost/client/` | Browser OLAP client — explore the sample cubes without installing anything |
 | `http://localhost/schema-editor/` | Schema editor — create and edit cubes in the browser |
+| `http://localhost/catalog-editor/` | Catalog editor — data sources and catalogs the server publishes |
 | `http://localhost/logs/` | Server logs |
 | `http://localhost/emondrian/mcp/sse` | **MCP endpoint** for AI agents — see below |
 
@@ -139,7 +140,7 @@ Things to try once connected:
 **The MCP tools need a licence that includes the `MCP` module.** They are the one
 part of this edition that is licensed: without it every tool answers
 `Module 'MCP' not found in license modules`, while XML/A, the browser client and
-the schema editor keep working. A trial key issued for DAX alone does not cover
+the editors keep working. A trial key issued for DAX alone does not cover
 it — request one with MCP included. Install it on the entry page, or drop the
 `.lic` file into `modules/` and restart the container.
 
