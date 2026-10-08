@@ -226,8 +226,9 @@ keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost.
 
 CORS widens this to the browser: with the default `CORS_ALLOW_ORIGIN=*`, any web
 page open in a browser that can reach the server may query `/xmla` and `/api`
-through it. Set `CORS_ALLOW_ORIGIN` to the one origin that needs it, or leave it
-empty, when the server holds data that should stay private.
+through it. Set `CORS_ALLOW_ORIGIN` to the one origin that needs it when the
+server holds data that should stay private. Leaving it empty does not close this:
+the eMondrian server's own CORS handling still allows simple requests from any origin.
 
 ---
 
