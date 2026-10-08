@@ -128,7 +128,8 @@ MDX or DAX, read the schema and tail the logs. The MCP server is part of the
 eMondrian container — there is nothing extra to start.
 
 It is served through the same front door as everything else, on port 80 (or
-whatever `EMONDRIAN_PORT` is set to). Transport is HTTP+SSE.
+whatever `EMONDRIAN_PORT` is set to). Transport is HTTP+SSE. To turn it off, set
+`ENABLE_SERVICE_MCP=false` in `.env` and run `docker compose up -d`.
 
 Claude Code:
 
@@ -222,7 +223,8 @@ The MCP endpoint deserves its own mention: it is published on the same port as
 the rest, which Docker binds on **all interfaces**, and four of its ten tools
 read or write server state rather than query data — `save_schema` overwrites a
 catalog's schema XML. Treat reaching this port as administrative access, and
-keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost.
+keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost. If
+nobody needs MCP, turn it off with `ENABLE_SERVICE_MCP=false`.
 
 CORS widens this to the browser: with the default `CORS_ALLOW_ORIGIN=*`, any web
 page open in a browser that can reach the server may query `/xmla` and `/api`
