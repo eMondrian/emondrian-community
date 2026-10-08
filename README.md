@@ -107,6 +107,18 @@ After startup, the following endpoints are available:
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
 
+Web applications on another origin can call `/xmla` and `/api` from the browser:
+the front door answers CORS requests, including the `SOAPAction` header XMLA
+clients send. `CORS_ALLOW_ORIGIN` in `.env` sets which origin may do so:
+
+```
+CORS_ALLOW_ORIGIN=*                        # default: any origin
+CORS_ALLOW_ORIGIN=https://app.example.com  # one origin
+CORS_ALLOW_ORIGIN=                         # leave CORS to the eMondrian server
+```
+
+Run `docker compose up -d` after changing it.
+
 ---
 
 ## Connect an AI agent (MCP)
@@ -211,6 +223,11 @@ the rest, which Docker binds on **all interfaces**, and four of its ten tools
 read or write server state rather than query data — `save_schema` overwrites a
 catalog's schema XML. Treat reaching this port as administrative access, and
 keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost.
+
+CORS widens this to the browser: with the default `CORS_ALLOW_ORIGIN=*`, any web
+page open in a browser that can reach the server may query `/xmla` and `/api`
+through it. Set `CORS_ALLOW_ORIGIN` to the one origin that needs it, or leave it
+empty, when the server holds data that should stay private.
 
 ---
 
