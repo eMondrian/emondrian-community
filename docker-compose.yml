@@ -1,7 +1,7 @@
 services:
 
   eMondrian:
-    image: emondrian/emondrian:10.0.42
+    image: emondrian/emondrian:10.0.43
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
@@ -15,11 +15,10 @@ services:
       TZ: Europe/Zurich
       # Tomcat defaults to 0027, which makes ./logs unreadable to the host user.
       UMASK: "0022"
-      # The MCP tools list-cubes and run-mdx-query use this one fixed connect string; the
-      # catalog-aware tools (list_catalogs, get_schema, execute_query) read datasources.xml
-      # instead and need nothing here. Catalog is an absolute path inside the container,
-      # because DriverManager has no ServletContext to resolve a /WEB-INF/... path against.
-      JAVA_TOOL_OPTIONS: "-Demondrian.mcp.connectString=Provider=mondrian;Jdbc=jdbc:hsqldb:res:/hsqldb-foodmart/foodmart;JdbcDrivers=org.hsqldb.jdbc.JDBCDriver;Catalog=/usr/local/tomcat/webapps/emondrian/WEB-INF/schema/Foodmart.xml"
+      # No emondrian.mcp.connectString here any more: modules 0.0.0.48 removed the only
+      # two tools that read it (list-cubes, run-mdx-query), which saw just that one schema
+      # -- an agent asking for cubes got FoodMart's and never learned OnTime existed. Every
+      # remaining tool (list_catalogs, get_schema, execute_query, ...) reads datasources.xml.
     restart: unless-stopped
     networks:
       - app_network
