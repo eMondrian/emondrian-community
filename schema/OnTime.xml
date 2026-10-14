@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Schema name="OnTime">
 
+  <!-- estimatedCount / approxRowCount: member counts measured against the full ontime table
+       (182,315,946 rows) on 2026-10-14, not guesses. Without them Mondrian issues
+       "select count(*) from (select distinct &lt;level keys&gt;)" per level, once per schema
+       load and again after every member-cache flush, and MDSCHEMA_LEVELS plus
+       CHILDREN_CARDINALITY make it materialize a whole level just to size it.
+
+       An attribute's estimatedCount is distinct over its own key column. A Hierarchy Level's
+       approxRowCount is what the engine itself counts: the level key plus every ancestor key
+       up to and including the first unique one (SqlMemberSource.makeLevelMemberCountSql),
+       which is why Quarter is 116 and not 4.
+
+       These are estimates and may go stale, which is safe in one direction only. Too high
+       keeps Mondrian constraining member queries and keeps Aggregation.optimizePredicates
+       from dropping a constraint it believes covers a whole level; too low invites both. The
+       community quick start ships one month of data, so on that stack every number here is an
+       overestimate, which is the deliberate side to err on. -->
+
+
   <View alias="dim_airline">
     <SQL dialect="clickhouse"><![CDATA[
       SELECT Reporting_Airline
@@ -122,12 +140,12 @@
            children are parsed positionally. See context/native_query.md §10. -->
       <AttributeMapping attribute="Airline" factColumn="Reporting_Airline"/>
 
-      <DimensionAttribute name="Airline">
+      <DimensionAttribute name="Airline" estimatedCount="33">
         <KeyColumn columnName="Reporting_Airline" type="String" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Airlines">
-        <Level name="Airline" uniqueMembers="true" sourceAttribute="Airline"/>
+        <Level name="Airline" approxRowCount="33" uniqueMembers="true" sourceAttribute="Airline"/>
       </Hierarchy>
     </Dimension>
 
@@ -138,22 +156,22 @@
       <AttributeMapping attribute="Quarter" factColumn="Quarter"/>
       <AttributeMapping attribute="Month"   factColumn="Month"/>
 
-      <DimensionAttribute name="Year">
+      <DimensionAttribute name="Year" estimatedCount="30">
         <KeyColumn columnName="Year" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Quarter">
+      <DimensionAttribute name="Quarter" estimatedCount="4">
         <KeyColumn columnName="Quarter" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Month">
+      <DimensionAttribute name="Month" estimatedCount="12">
         <KeyColumn columnName="Month" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Time">
-        <Level name="Year"    uniqueMembers="true"  sourceAttribute="Year"/>
-        <Level name="Quarter" uniqueMembers="false" sourceAttribute="Quarter" nameColumn="QuarterName"/>
-        <Level name="Month"   uniqueMembers="false" sourceAttribute="Month"   nameColumn="MonthName"/>
+        <Level name="Year"    approxRowCount="30"  uniqueMembers="true"  sourceAttribute="Year"/>
+        <Level name="Quarter" approxRowCount="116" uniqueMembers="false" sourceAttribute="Quarter" nameColumn="QuarterName"/>
+        <Level name="Month"   approxRowCount="346" uniqueMembers="false" sourceAttribute="Month"   nameColumn="MonthName"/>
       </Hierarchy>
     </Dimension>
 
@@ -162,12 +180,12 @@
 
       <AttributeMapping attribute="Day of Week" factColumn="DayOfWeek"/>
 
-      <DimensionAttribute name="Day of Week">
+      <DimensionAttribute name="Day of Week" estimatedCount="7">
         <KeyColumn columnName="DayOfWeekKey" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Days">
-        <Level name="Day of Week" uniqueMembers="true" sourceAttribute="Day of Week" nameColumn="DayOfWeekName"/>
+        <Level name="Day of Week" approxRowCount="7" uniqueMembers="true" sourceAttribute="Day of Week" nameColumn="DayOfWeekName"/>
       </Hierarchy>
     </Dimension>
 
@@ -182,22 +200,22 @@
            Fix the view's key first; only then is a mapping safe.
            Origin City / Origin State are absent from the fact view entirely. -->
 
-      <DimensionAttribute name="Origin State">
+      <DimensionAttribute name="Origin State" estimatedCount="54">
         <KeyColumn columnName="StateName" type="String" dataType="String"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Origin City">
+      <DimensionAttribute name="Origin City" estimatedCount="426">
         <KeyColumn columnName="CityName" type="String" dataType="String"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Origin Airport">
+      <DimensionAttribute name="Origin Airport" estimatedCount="435">
         <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Origins">
-        <Level name="State"   uniqueMembers="true"  sourceAttribute="Origin State"/>
-        <Level name="City"    uniqueMembers="false" sourceAttribute="Origin City"/>
-        <Level name="Airport" uniqueMembers="true"  sourceAttribute="Origin Airport"/>
+        <Level name="State"   approxRowCount="54"  uniqueMembers="true"  sourceAttribute="Origin State"/>
+        <Level name="City"    approxRowCount="426" uniqueMembers="false" sourceAttribute="Origin City"/>
+        <Level name="Airport" approxRowCount="435" uniqueMembers="true"  sourceAttribute="Origin Airport"/>
       </Hierarchy>
     </Dimension>
 
@@ -208,22 +226,22 @@
            codes carry two city/state spellings, so AirportCode is not unique in
            dim_dest_airport. Dest City / Dest State are absent from the fact view. -->
 
-      <DimensionAttribute name="Dest State">
+      <DimensionAttribute name="Dest State" estimatedCount="54">
         <KeyColumn columnName="StateName" type="String" dataType="String"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Dest City">
+      <DimensionAttribute name="Dest City" estimatedCount="425">
         <KeyColumn columnName="CityName" type="String" dataType="String"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Dest Airport">
+      <DimensionAttribute name="Dest Airport" estimatedCount="436">
         <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Destinations">
-        <Level name="State"   uniqueMembers="true"  sourceAttribute="Dest State"/>
-        <Level name="City"    uniqueMembers="false" sourceAttribute="Dest City"/>
-        <Level name="Airport" uniqueMembers="true"  sourceAttribute="Dest Airport"/>
+        <Level name="State"   approxRowCount="54"  uniqueMembers="true"  sourceAttribute="Dest State"/>
+        <Level name="City"    approxRowCount="425" uniqueMembers="false" sourceAttribute="Dest City"/>
+        <Level name="Airport" approxRowCount="436" uniqueMembers="true"  sourceAttribute="Dest Airport"/>
       </Hierarchy>
     </Dimension>
 
@@ -232,12 +250,12 @@
 
       <AttributeMapping attribute="Distance Group" factColumn="DistanceGroupKey"/>
 
-      <DimensionAttribute name="Distance Group">
+      <DimensionAttribute name="Distance Group" estimatedCount="11">
         <KeyColumn columnName="DistanceGroupKey" type="Numeric" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Distances">
-        <Level name="Distance Group" uniqueMembers="true" sourceAttribute="Distance Group" nameColumn="DistanceGroupName"/>
+        <Level name="Distance Group" approxRowCount="11" uniqueMembers="true" sourceAttribute="Distance Group" nameColumn="DistanceGroupName"/>
       </Hierarchy>
     </Dimension>
 
@@ -249,12 +267,12 @@
            Flights that the fact table still holds. A factColumn skips the join and so stops
            applying that filter, which would silently change results. -->
 
-      <DimensionAttribute name="Tail Number">
+      <DimensionAttribute name="Tail Number" estimatedCount="17180">
         <KeyColumn columnName="Tail_Number" type="String" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Tails">
-        <Level name="Tail Number" uniqueMembers="true" sourceAttribute="Tail Number"/>
+        <Level name="Tail Number" approxRowCount="17180" uniqueMembers="true" sourceAttribute="Tail Number"/>
       </Hierarchy>
     </Dimension>
 
