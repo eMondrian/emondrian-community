@@ -158,12 +158,9 @@ Things to try once connected:
 - *"Run this MDX on catalog FoodMart: SELECT {[Measures].[Org Salary]} ON 0 FROM [HR]"*
 - *"Which Mondrian properties are set on this server?"*
 
-**The MCP tools need a licence that includes the `MCP` module.** They are the one
-part of this edition that is licensed: without it every tool answers
-`Module 'MCP' not found in license modules`, while XML/A, the browser client and
-the editors keep working. A trial key issued for DAX alone does not cover
-it — request one with MCP included. Install it on the entry page, or drop the
-`.lic` file into `modules/` and restart the container.
+**The MCP tools need a licence key that includes the `MCP` module**, and
+`get_csdl` needs `DAX` as well — see [Licence keys](#licence-keys) below. MDX
+over XML/A, the browser client and the editors need no key at all.
 
 Ten tools are exposed: `list_catalogs`, `get_schema`, `get_csdl`,
 `execute_query`, `validate_schema`, `get_cube_authoring_guide`,
@@ -225,6 +222,40 @@ docker compose down -v       # remove containers and the ClickHouse data
 
 The `logs/` directory is written by the container as `root`; removing it needs
 `sudo`.
+
+---
+
+## Licence keys
+
+Most of this edition needs no key. What each part needs:
+
+| What you use | Key needed |
+|---|---|
+| MDX over `/xmla` — Excel, the browser OLAP client, any MDX client | **None.** Works out of the box |
+| The schema and catalog editors, the logs page | **None** |
+| **Power BI** (Connect live, DAX queries, CSDL metadata) | A key including **`DAX`** |
+| **MCP tools** for AI agents | A key including **`MCP`** |
+| The MCP `get_csdl` tool | **Both** `DAX` and `MCP` — it returns the Power BI model through the DAX module |
+
+A free 30-day evaluation key covers both `DAX` and `MCP`:
+**https://emondrian.com/license**
+
+Where it goes: put the `.lic` file into the **`modules/` folder next to
+`docker-compose.yml`**, the same folder as the module jars. No restart is
+needed — the next request picks it up. You can also install it from the entry
+page at `http://localhost`.
+
+**Keep exactly one valid `.lic` there.** The server uses the first file that
+validates, and with two valid keys in the folder which one that is depends on
+the order the filesystem lists them — so delete the old key rather than leaving
+it beside the new one. An expired or wrong-module key sitting next to a valid
+one is harmless: it is skipped.
+
+Without a key, the licensed paths say what to do rather than failing opaquely —
+for example `No eMondrian licence found. Put your .lic file into the modules/
+folder …`, or `Your eMondrian licence expired on 2026-10-07. Request an
+extension: …`. The file name and the technical reason go to the server log
+(`logs/mondrian.log`), not to the client.
 
 ---
 
