@@ -104,7 +104,8 @@ After startup, the following endpoints are available:
 | `http://localhost/schema-editor/` | Schema editor — create and edit cubes in the browser |
 | `http://localhost/catalog-editor/` | Catalog editor — data sources and catalogs the server publishes |
 | `http://localhost/logs/` | Server logs |
-| `http://localhost/emondrian/mcp/sse` | **MCP endpoint** for AI agents — see below |
+| `http://localhost/emondrian/mcp` | **MCP endpoint** for AI agents, streamable HTTP — see below |
+| `http://localhost/emondrian/mcp/sse` | The same MCP server over the older HTTP+SSE transport |
 
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
@@ -130,21 +131,26 @@ MDX or DAX, read the schema and tail the logs. The MCP server is part of the
 eMondrian container — there is nothing extra to start.
 
 It is served through the same front door as everything else, on port 80 (or
-whatever `EMONDRIAN_PORT` is set to). Transport is HTTP+SSE. To turn it off, set
-`ENABLE_SERVICE_MCP=false` in `.env` and run `docker compose up -d`.
+whatever `EMONDRIAN_PORT` is set to). Both MCP transports are available on the
+same server, with the same tools: **streamable HTTP** at
+`http://localhost/emondrian/mcp` (with or without the trailing slash), which is
+what the current spec defines, and **HTTP+SSE** at
+`http://localhost/emondrian/mcp/sse`, which is what older clients point at. To
+turn MCP off, set `ENABLE_SERVICE_MCP=false` in `.env` and run
+`docker compose up -d`.
 
 Claude Code:
 
 ```bash
-claude mcp add --transport sse emondrian http://localhost/emondrian/mcp/sse
+claude mcp add --transport http emondrian http://localhost/emondrian/mcp
+claude mcp add --transport sse  emondrian http://localhost/emondrian/mcp/sse   # older clients
 ```
 
-Any MCP client that speaks HTTP+SSE works the same way — point it at
-`http://localhost/emondrian/mcp/sse`. There are no authentication headers.
+There are no authentication headers on either.
 
-The `/emondrian/` prefix is part of the URL and not a typo: the server's SSE
-handshake tells the client to post back to `/emondrian/mcp/message`, so the
-client has to reach that path on this origin.
+The `/emondrian/` prefix is part of the URL and not a typo: on the SSE
+transport the server's handshake tells the client to post back to
+`/emondrian/mcp/message`, so the client has to reach that path on this origin.
 
 Things to try once connected:
 
@@ -159,10 +165,18 @@ the editors keep working. A trial key issued for DAX alone does not cover
 it — request one with MCP included. Install it on the entry page, or drop the
 `.lic` file into `modules/` and restart the container.
 
-Ten tools are exposed. Four of them — `get_schema`, `validate_schema`,
-`save_schema` and `read_logs` — read or **write** server state rather than query
-data; `save_schema` overwrites a catalog's schema XML. On this edition nothing is
-authenticated, so treat MCP access as administrative access.
+Ten tools are exposed: `list_catalogs`, `get_schema`, `get_csdl`,
+`execute_query`, `validate_schema`, `get_cube_authoring_guide`,
+`get_properties`, `save_schema`, `save_catalog` and `read_logs`. The last four
+read or **write** server state rather than query data — `save_schema`
+overwrites a catalog's schema XML and `save_catalog` edits the catalog
+registry. On this edition nothing is authenticated, so treat MCP access as
+administrative access.
+
+`get_csdl` returns one cube's model as Power BI sees it — the same CSDL
+document Power BI Desktop receives on a live connection, so an agent can write
+Power BI report files that name fields the way the model does. It needs a
+licence granting `DAX` as well as `MCP`.
 
 ---
 
