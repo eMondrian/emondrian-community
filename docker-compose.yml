@@ -1,7 +1,7 @@
 services:
 
   eMondrian:
-    image: emondrian/emondrian:10.0.43
+    image: emondrian/emondrian:10.0.44
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
