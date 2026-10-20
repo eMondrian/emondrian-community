@@ -308,7 +308,7 @@
     </CalculatedMember>
 
     <CalculatedMember name="On-Time Rate" dimension="Measures" formatString="0.00%">
-      <Formula>1 - ([Measures].[Late Arrivals] + [Measures].[Cancelled] + [Measures].[Diverted]) / [Measures].[Flights]</Formula>
+      <Formula>IIf(IsEmpty([Measures].[Flights]) OR [Measures].[Flights] = 0, NULL, 1 - ([Measures].[Late Arrivals] + [Measures].[Cancelled] + [Measures].[Diverted]) / [Measures].[Flights])</Formula>
     </CalculatedMember>
 
   </Cube>
