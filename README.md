@@ -106,6 +106,7 @@ After startup, the following endpoints are available:
 | `http://localhost/logs/` | Server logs |
 | `http://localhost/emondrian/mcp` | **MCP endpoint** for AI agents, streamable HTTP — see below |
 | `http://localhost/emondrian/mcp/sse` | The same MCP server over the older HTTP+SSE transport |
+| `http://localhost/dashboard/` | Dashboards an AI agent builds (preview, off by default) — see below |
 
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
@@ -174,6 +175,27 @@ administrative access.
 document Power BI Desktop receives on a live connection, so an agent can write
 Power BI report files that name fields the way the model does. It needs a
 licence granting `DAX` as well as `MCP`.
+
+---
+
+## Dashboards (preview)
+
+An AI agent can build dashboards over the cubes and give you a link to open them in the
+browser. It needs two MCP servers: eMondrian's above for cubes and queries, and the
+dashboard service's for saving dashboards. The service is off by default. To turn it on,
+set `ENABLE_SERVICE_DASHBOARD=true` in `.env` and start it with its profile:
+
+```bash
+docker compose --profile dashboard up -d
+claude mcp add --transport http emondrian-dashboard http://localhost/dashboard/mcp
+```
+
+Then ask the agent for a dashboard, for example *"US flight punctuality for 2025 from the
+OnTime cube, by origin state and by month, with an airline filter"*. Dashboards are kept in
+the `dashboard_data` volume.
+
+This preview has no users: anyone who can reach the server can change or delete any
+dashboard. Keep it on a trusted network.
 
 ---
 

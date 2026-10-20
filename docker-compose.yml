@@ -82,6 +82,21 @@ services:
     networks:
       - app_network
 
+  # Preview: dashboards an AI agent builds through MCP, at /dashboard/. Started only with
+  # `docker compose --profile dashboard up -d` and ENABLE_SERVICE_DASHBOARD=true in .env.
+  dashboard:
+    image: emondrian/dashboard:0.1.0
+    container_name: emondrian_dashboard
+    profiles: [dashboard]
+    restart: unless-stopped
+    environment:
+      XMLA_URL: http://emondrian_service:8080/emondrian/xmla
+      BROWSER_XMLA_URL: /xmla
+    volumes:
+      - dashboard_data:/data
+    networks:
+      - app_network
+
   emondrian_entry:
     image: emondrian/entry:1.2.1
     container_name: emondrian_entry
@@ -107,3 +122,4 @@ networks:
 
 volumes:
   clickhouse_data:
+  dashboard_data:
