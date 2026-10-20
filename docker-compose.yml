@@ -94,6 +94,8 @@ services:
       BROWSER_XMLA_URL: /xmla
     volumes:
       - dashboard_data:/data
+      # The eMondrian licence: the Dashboard needs a key with the DASHBOARD module.
+      - ./modules:/modules:ro
     networks:
       - app_network
 
