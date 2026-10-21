@@ -10,17 +10,22 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
-## Unreleased
+## 2026.10.21
 
-Web tools `1.1.0` · entry `1.3.1`
+Server `10.0.45` · modules `0.0.0.54` · web tools `1.1.0` · entry `1.3.1`
+
+Docker image `emondrian/emondrian:10.0.45`, which `latest` now points to.
 
 ### Improved
 
+- **Power BI reports built by AI agents** cover more of what Power BI Desktop writes: slicers set to the latest month, display units on data labels, sort and several visual filters, matrices with several Rows or Columns fields (collapsed or expanded), and charts drilled down a hierarchy.
 - **OLAP Client: a new pivot table.** Drill down and up from a member, expand or collapse all, and a busy state while a query runs. Columns keep their width while you scroll and can be resized; arrow keys move between cells, and a cell menu copies values or rows. The table can be downloaded as CSV.
 - **Entry page:** AI agents connect over Streamable HTTP at `/emondrian/mcp` (SSE stays at `/emondrian/mcp/sse` for older clients), and the evaluation key is requested at [emondrian.com/license](https://emondrian.com/license).
 
 ### Fixed
 
+- **Several members in the slicer:** a query with a set in its WHERE clause, such as `{[Airline].[AA], [Airline].[DL]}`, no longer returns empty axes.
+- **Power BI cross-highlighting** from a chart with a visual Top N no longer fails the other visuals.
 - **Entry after a partial restart:** the entry looks containers up on every request, so `/xmla`, MCP and the tools keep working after `docker compose up -d` recreates some of them.
 - **OnTime sample:** On-Time Rate is empty where Flights is empty, instead of showing 100%.
 
