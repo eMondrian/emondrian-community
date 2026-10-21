@@ -62,7 +62,7 @@ services:
     restart: "no"
 
   olapClient:
-    image: emondrian/webolapclient:1.1.0
+    image: emondrian/webolapclient:1.1.1
     container_name: olap_client
     restart: unless-stopped
     networks:

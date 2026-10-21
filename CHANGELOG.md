@@ -10,6 +10,14 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## Unreleased
+
+OLAP Client `1.1.1` (Schema Editor and Catalog Editor stay `1.1.0`)
+
+### Fixed
+
+- **OLAP Client:** expanding a member in the pivot no longer hangs on "Running the query…" when the cube was chosen while the client was still starting.
+
 ## 2026.10.21
 
 Server `10.0.45` · modules `0.0.0.54` · web tools `1.1.0` · entry `1.3.1`
