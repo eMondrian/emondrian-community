@@ -12,6 +12,13 @@ docker compose up -d --remove-orphans
 
 ## Unreleased
 
+Web tools `1.1.0` · entry `1.3.0`
+
+### Improved
+
+- **OLAP Client: a new pivot table.** Drill down and up from a member, expand or collapse all, and a busy state while a query runs. Columns keep their width while you scroll and can be resized; arrow keys move between cells, and a cell menu copies values or rows. The table can be downloaded as CSV.
+- **Entry page:** AI agents connect over Streamable HTTP at `/emondrian/mcp` (SSE stays at `/emondrian/mcp/sse` for older clients), and the evaluation key is requested at [emondrian.com/license](https://emondrian.com/license).
+
 ### Fixed
 
 - **OnTime sample:** On-Time Rate is empty where Flights is empty, instead of showing 100%.

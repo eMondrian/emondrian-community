@@ -62,28 +62,28 @@ services:
     restart: "no"
 
   olapClient:
-    image: emondrian/webolapclient:1.0.1
+    image: emondrian/webolapclient:1.1.0
     container_name: olap_client
     restart: unless-stopped
     networks:
       - app_network
 
   schemaEditor:
-    image: emondrian/schema-editor:1.0.1
+    image: emondrian/schema-editor:1.1.0
     container_name: schema_editor
     restart: unless-stopped
     networks:
       - app_network
 
   catalogEditor:
-    image: emondrian/catalog-editor:1.0.1
+    image: emondrian/catalog-editor:1.1.0
     container_name: catalog_editor
     restart: unless-stopped
     networks:
       - app_network
 
   emondrian_entry:
-    image: emondrian/entry:1.2.1
+    image: emondrian/entry:1.3.0
     container_name: emondrian_entry
     restart: unless-stopped
     ports:
