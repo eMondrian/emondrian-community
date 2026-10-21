@@ -10,9 +10,11 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
-## Unreleased
+## 2026.10.21.1
 
-OLAP Client `1.1.1` (Schema Editor and Catalog Editor stay `1.1.0`)
+Server `10.0.45` · modules `0.0.0.54` · web tools `1.1.1` · entry `1.3.1`
+
+OLAP Client `1.1.1`; the Schema Editor and Catalog Editor stay `1.1.0`.
 
 ### Fixed
 
