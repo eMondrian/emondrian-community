@@ -83,7 +83,7 @@ services:
       - app_network
 
   emondrian_entry:
-    image: emondrian/entry:1.3.0
+    image: emondrian/entry:1.3.1
     container_name: emondrian_entry
     restart: unless-stopped
     ports:

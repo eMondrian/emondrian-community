@@ -12,7 +12,7 @@ docker compose up -d --remove-orphans
 
 ## Unreleased
 
-Web tools `1.1.0` · entry `1.3.0`
+Web tools `1.1.0` · entry `1.3.1`
 
 ### Improved
 
@@ -21,6 +21,7 @@ Web tools `1.1.0` · entry `1.3.0`
 
 ### Fixed
 
+- **Entry after a partial restart:** the entry looks containers up on every request, so `/xmla`, MCP and the tools keep working after `docker compose up -d` recreates some of them.
 - **OnTime sample:** On-Time Rate is empty where Flights is empty, instead of showing 100%.
 
 ## 2026.10.18
