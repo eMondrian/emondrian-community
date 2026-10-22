@@ -10,6 +10,26 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.22
+
+Server `10.0.47` · modules `0.0.0.54` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.47` (engine 9.3.0-emondrian.47). OLAP Client `1.2.0`; the Schema Editor and Catalog Editor stay `1.1.0`.
+
+### New
+
+- **Server metrics.** The server exports Prometheus metrics at `/metrics`: active users, open sessions and connections per user and catalog, queries started, finished and failed per cube and user, execution times, result sizes, engine errors by class, and the JVM's own metrics. The front door does not expose the endpoint (it carries user names); scrape it on the Docker network. The [demo repository](https://github.com/eMondrian/emondrian-demo) has a Prometheus and Grafana overlay with a ready *User activity* dashboard.
+- **OLAP Client understands eMondrian's MDX.** `x IS EMPTY`, `x IN set`, `x NOT IN set`, `s MATCHES pattern`, `||` for strings, numbers like `1.` and the `BEFORE_AND_AFTER` flag no longer show as syntax errors. The server's own functions (`Cache`, `Percentile`, `Parameter`, `CurrentDateMember`, the extra VBA functions, member properties such as `.Caption`) and its forms of `StrToSet`, `StrToTuple`, `StrToMember`, `Levels` and `NonEmptyCrossJoin` are known to validation, completion and hover.
+
+### Improved
+
+- **OLAP Client warns before the server fails:** a comma between WITH clauses, `CALCULATED MEMBER`, an axis given as an expression, functions in DRILLTHROUGH RETURN, single quotes after `AS`, `TRUE`/`FALSE`, the `TYPED`, `CONSTRAINED` and `RECURSIVE` flags, cell properties the server cannot return, `+` on strings, `CURRENTCUBE`, `@param`, CAST types the server lacks, and a function used as a method or a property (`set.Order(…)`, `member.Children()`).
+
+### Fixed
+
+- **Server:** DRILLTHROUGH from an aggregate member, and `NON EMPTY` over a member's children joins the level's table (engine 9.3.0-emondrian.46).
+- **Entry:** the `/dashboard/mcp` route is gone; the only MCP endpoint is `/emondrian/mcp`.
+
 ## 2026.10.21.1
 
 Server `10.0.45` · modules `0.0.0.54` · web tools `1.1.1` · entry `1.3.1`

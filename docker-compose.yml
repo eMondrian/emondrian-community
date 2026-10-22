@@ -1,7 +1,7 @@
 services:
 
   eMondrian:
-    image: emondrian/emondrian:10.0.45
+    image: emondrian/emondrian:10.0.47
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
@@ -62,7 +62,7 @@ services:
     restart: "no"
 
   olapClient:
-    image: emondrian/webolapclient:1.1.1
+    image: emondrian/webolapclient:1.2.0
     container_name: olap_client
     restart: unless-stopped
     networks:
@@ -83,7 +83,7 @@ services:
       - app_network
 
   emondrian_entry:
-    image: emondrian/entry:1.3.1
+    image: emondrian/entry:1.3.2
     container_name: emondrian_entry
     restart: unless-stopped
     ports:
