@@ -85,7 +85,7 @@ services:
   # Preview: dashboards an AI agent builds through MCP, at /dashboard/. Started only with
   # `docker compose --profile dashboard up -d` and ENABLE_SERVICE_DASHBOARD=true in .env.
   dashboard:
-    image: emondrian/dashboard:0.1.0
+    image: emondrian/dashboard:0.1.1
     container_name: emondrian_dashboard
     profiles: [dashboard]
     restart: unless-stopped
