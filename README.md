@@ -181,13 +181,12 @@ licence granting `DAX` as well as `MCP`.
 ## Dashboards (preview)
 
 An AI agent can build dashboards over the cubes and give you a link to open them in the
-browser. It needs two MCP servers: eMondrian's above for cubes and queries, and the
-dashboard service's for saving dashboards. The service is off by default. To turn it on,
+browser. The eMondrian MCP server above offers the Dashboard tools; its module calls the
+dashboard service inside the compose network. The service is off by default. To turn it on,
 set `ENABLE_SERVICE_DASHBOARD=true` in `.env` and start it with its profile:
 
 ```bash
 docker compose --profile dashboard up -d
-claude mcp add --transport http emondrian-dashboard http://localhost/dashboard/mcp
 ```
 
 Then ask the agent for a dashboard, for example *"US flight punctuality for 2025 from the
