@@ -106,6 +106,7 @@ After startup, the following endpoints are available:
 | `http://localhost/logs/` | Server logs |
 | `http://localhost/emondrian/mcp` | **MCP endpoint** for AI agents, streamable HTTP — see below |
 | `http://localhost/emondrian/mcp/sse` | The same MCP server over the older HTTP+SSE transport |
+| `http://localhost/dashboard/` | Dashboards an AI agent builds (preview, off by default) — see below |
 
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
@@ -177,6 +178,29 @@ licence granting `DAX` as well as `MCP`.
 
 ---
 
+## Dashboards (preview)
+
+An AI agent can build dashboards over the cubes and give you a link to open them in the
+browser. The eMondrian MCP server above offers the Dashboard tools; its module calls the
+dashboard service inside the compose network. The service is off by default. To turn it on,
+set `ENABLE_SERVICE_DASHBOARD=true` in `.env` and start it with its profile:
+
+```bash
+docker compose --profile dashboard up -d
+```
+
+Then ask the agent for a dashboard, for example *"US flight punctuality for 2025 from the
+OnTime cube, by origin state and by month, with an airline filter"*. Dashboards are kept in
+the `dashboard_data` volume.
+
+The dashboard service needs a licence with the `DASHBOARD` module, read from the same
+`modules/` folder as the other keys; without one it shows where to get a key.
+
+This preview has no users: anyone who can reach the server can change or delete any
+dashboard. Keep it on a trusted network.
+
+---
+
 ## Sample Data
 
 Two catalogs are ready after setup:
@@ -236,8 +260,9 @@ Most of this edition needs no key. What each part needs:
 | **Power BI** (Connect live, DAX queries, CSDL metadata) | A key including **`DAX`** |
 | **MCP tools** for AI agents | A key including **`MCP`** |
 | The MCP `get_csdl` tool | **Both** `DAX` and `MCP` — it returns the Power BI model through the DAX module |
+| **Dashboards** built by AI agents (preview, `--profile dashboard`) | A key including **`DASHBOARD`** |
 
-A free 30-day evaluation key covers both `DAX` and `MCP`:
+A free 30-day evaluation key covers `DAX`, `MCP` and `DASHBOARD`:
 **https://emondrian.com/license**
 
 Where it goes: put the `.lic` file into the **`modules/` folder next to
