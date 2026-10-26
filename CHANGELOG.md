@@ -10,6 +10,23 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.26
+
+Server `10.0.49` · modules `0.0.0.56` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.49` (engine 9.3.0-emondrian.49). The web tools and the entry page are unchanged.
+
+### New
+
+- **Agent access per catalog.** `<Catalog agentAccess="none">` in `datasources.xml` (an attribute on the element) keeps a catalog away from MCP agents: `list_catalogs` leaves it out and every tool that names it refuses. `-Demondrian.mcp.agentAccess` sets the same rule for the whole server. XML/A clients are not affected.
+- **`mondrian.result.evaluationLimit`.** With it set, `mondrian.result.limit` applies to the cells a `NON EMPTY` query returns, not to the size it had before the empty rows and columns were removed; the new property bounds that larger, in-memory size. Unset (the default), nothing changes.
+
+### Fixed
+
+- **Excel pivot filters on large levels.** A filter Excel sends as a subquery with an explicit set of members looked every member up again on each cell request, so a few thousand selected members made a query take minutes ([#6](https://github.com/eMondrian/emondrian-community/issues/6)). Filtering 6 000 tail numbers in OnTime now takes 2 s instead of 8 s, with the same numbers.
+- **Cell properties.** A query asking for a cell property the server had no element for (`FONT_NAME`, `FONT_SIZE`, `ACTION_TYPE`, …, as some Excel versions do) failed with *XMLA Execute unparse results error* after it had run. All the standard cell properties are returned now, and unknown ones are ignored.
+- **MCP:** the dashboard tools are listed, and answer that the Dashboard application is not available on this server; dashboards are part of eMondrian Enterprise. The synthetic-catalog tools answer that their module is not installed.
+
 ## 2026.10.22
 
 Server `10.0.47` · modules `0.0.0.54` · web tools `1.2.0` · entry `1.3.2`
