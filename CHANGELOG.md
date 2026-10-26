@@ -10,6 +10,25 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.26.1
+
+Server `10.0.50` · modules `0.0.0.58` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.50` (engine 9.3.0-emondrian.50). The web tools and the entry page are unchanged.
+
+### New
+
+- **MCP `describe_cube`.** One call lists a cube's dimensions (time dimensions marked), hierarchies with their All and default members, levels with their level type, the row count the schema reports and an optional counted one, a sample member, and the stored and calculated measures. An agent checking a cube it has just written no longer needs access to the server's files.
+- **MCP sessions see a saved schema the way XML/A sessions do.** After `save_schema` or `save_catalog`, the session that saved and every new session get the new version; sessions already open keep the version they started with until they end.
+- **`save_schema` and `save_catalog` check what they saved.** They load the catalog and open a database connection, and report a failure plainly, saying the file was saved, with a hint for the common causes: a host name with an underscore, which the ClickHouse driver rejects, or a host the server cannot resolve.
+- **`validate_schema` checks time dimensions.** Every level of a `TimeDimension`, including the attribute hierarchies it generates, must have a time level type (`TimeUndefined` counts), and no other dimension may have one. The server refused such a schema when loading it, without saying why; the validator now reports it with the fix.
+- **MCP `make_project` can default its server address.** `-Demondrian.mcp.publicXmlaUrl=<url>` sets the XML/A URL written into a Power BI project when the agent passes no `dataSource`; without it, `dataSource` stays required.
+- **The cube authoring guide** (`get_cube_authoring_guide`) covers measures, time dimensions, shared dimensions and virtual cubes, calculated members, and how MDX names members and levels.
+
+### Fixed
+
+- **MCP:** a tool that hit an internal Java error left the client waiting for an answer that never came; it now returns the error. Passwords in connection errors are masked.
+
 ## 2026.10.26
 
 Server `10.0.49` · modules `0.0.0.56` · web tools `1.2.0` · entry `1.3.2`
