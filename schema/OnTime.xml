@@ -276,16 +276,16 @@
       </Hierarchy>
     </Dimension>
 
-    <Measure name="Flights"    column="Flights"   aggregator="sum" formatString="#,###"/>
-    <Measure name="Cancelled"  column="Cancelled" aggregator="sum" formatString="#,###"/>
-    <Measure name="Diverted"   column="Diverted"  aggregator="sum" formatString="#,###"/>
+    <Measure name="Flights"    column="Flights"   aggregator="sum" formatString="#,##0"/>
+    <Measure name="Cancelled"  column="Cancelled" aggregator="sum" formatString="#,##0"/>
+    <Measure name="Diverted"   column="Diverted"  aggregator="sum" formatString="#,##0"/>
 
-    <Measure name="Late Arrivals" column="ArrDel15" aggregator="sum" formatString="#,###"/>
+    <Measure name="Late Arrivals" column="ArrDel15" aggregator="sum" formatString="#,##0"/>
 
     <Measure name="Total Arr Delay" column="ArrDelayMinutes" aggregator="sum" visible="false"/>
     <Measure name="Total Dep Delay" column="DepDelayMinutes" aggregator="sum" visible="false"/>
 
-    <Measure name="Distinct Tail Numbers" column="Tail_Number" aggregator="distinct-count" formatString="#,###"/>
+    <Measure name="Distinct Tail Numbers" column="Tail_Number" aggregator="distinct-count" formatString="#,##0"/>
 
     <CalculatedMember name="Avg Arr Delay" dimension="Measures" formatString="#,##0.00">
       <Formula>[Measures].[Total Arr Delay] / [Measures].[Flights]</Formula>
