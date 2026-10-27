@@ -10,6 +10,18 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.27.3
+
+Server `10.0.51` · modules `0.0.0.63` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.51` (unchanged). The web tools and the entry page are unchanged.
+
+### Improved
+
+- **Power BI reports from MCP: a chart as wide as its categories.** A line or column chart gets 31 px per category on its axis, counted on the server under the page filters and the slicers that filter it, so a line of 30 years is 930 px and shows every year instead of scrolling. The other charts in the row share the rest; when a row cannot fit, the result says which chart is short.
+- **Power BI reports from MCP: time in time order.** A column or bar chart on a time dimension's column (Year, Month) sorts by it, so months read 1 to 12; other categories still sort by value, largest first.
+- **OnTime schema:** `Time` is declared a time dimension (years, quarters, months), as FoodMart's is. MDX time functions such as `YTD` now work on it. The figures and the Power BI metadata are unchanged.
+
 ## 2026.10.27.2
 
 Server `10.0.51` · modules `0.0.0.62` · web tools `1.2.0` · entry `1.3.2`
