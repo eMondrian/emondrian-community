@@ -10,6 +10,16 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.27.1
+
+Server `10.0.51` · modules `0.0.0.61` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.51` (unchanged). The web tools and the entry page are unchanged.
+
+### Improved
+
+- **Power BI reports from MCP: a slicer no longer filters a chart of its own field.** With the Year slicer on 2025, a line chart of the on-time rate by year still shows every year, so the selection is seen in context; a chart on the whole Time hierarchy counts too. Tables, matrices and cards are still filtered. A visual's `"slicers"` option overrides this: `"filter"` lets every slicer filter it, `"ignore"` lets none. The project shows the same settings in Desktop under Format → Edit interactions.
+
 ## 2026.10.27
 
 Server `10.0.51` · modules `0.0.0.60` · web tools `1.2.0` · entry `1.3.2`
