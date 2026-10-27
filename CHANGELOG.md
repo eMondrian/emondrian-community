@@ -10,6 +10,20 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.27.2
+
+Server `10.0.51` · modules `0.0.0.62` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.51` (unchanged). The web tools and the entry page are unchanged.
+
+### Improved
+
+- **Power BI reports from MCP: a tighter top row.** A card with a title no longer repeats the measure name under its value (`"header": true` keeps it). Dropdown slicers are 70 px and cards 90 px instead of 180 px, so the charts below start higher and are taller. A list slicer keeps 180 px.
+
+### Fixed
+
+- **Count measures show zero as 0.** Flights, Cancelled, Diverted, Late Arrivals and Distinct Tail Numbers in OnTime, and Sales Count, Customer Count, Store Sqft and Grocery Sqft in FoodMart, were formatted `#,###`, which shows zero as an empty cell; in Power BI a value axis read ".0M .2M". They are now `#,##0`. The numbers are unchanged.
+
 ## 2026.10.27.1
 
 Server `10.0.51` · modules `0.0.0.61` · web tools `1.2.0` · entry `1.3.2`
