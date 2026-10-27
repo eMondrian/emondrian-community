@@ -141,7 +141,7 @@
       <AttributeMapping attribute="Airline" factColumn="Reporting_Airline"/>
 
       <DimensionAttribute name="Airline" estimatedCount="33">
-        <KeyColumn columnName="Reporting_Airline" type="String" dataType="String"/>
+        <KeyColumn columnName="Reporting_Airline" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Airlines">
@@ -157,15 +157,15 @@
       <AttributeMapping attribute="Month"   factColumn="Month"/>
 
       <DimensionAttribute name="Year" estimatedCount="30">
-        <KeyColumn columnName="Year" type="Numeric" dataType="Numeric"/>
+        <KeyColumn columnName="Year" dataType="Numeric"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Quarter" estimatedCount="4">
-        <KeyColumn columnName="Quarter" type="Numeric" dataType="Numeric"/>
+        <KeyColumn columnName="Quarter" dataType="Numeric"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Month" estimatedCount="12">
-        <KeyColumn columnName="Month" type="Numeric" dataType="Numeric"/>
+        <KeyColumn columnName="Month" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Time">
@@ -181,7 +181,7 @@
       <AttributeMapping attribute="Day of Week" factColumn="DayOfWeek"/>
 
       <DimensionAttribute name="Day of Week" estimatedCount="7">
-        <KeyColumn columnName="DayOfWeekKey" type="Numeric" dataType="Numeric"/>
+        <KeyColumn columnName="DayOfWeekKey" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Days">
@@ -201,15 +201,15 @@
            Origin City / Origin State are absent from the fact view entirely. -->
 
       <DimensionAttribute name="Origin State" estimatedCount="54">
-        <KeyColumn columnName="StateName" type="String" dataType="String"/>
+        <KeyColumn columnName="StateName" dataType="String"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Origin City" estimatedCount="426">
-        <KeyColumn columnName="CityName" type="String" dataType="String"/>
+        <KeyColumn columnName="CityName" dataType="String"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Origin Airport" estimatedCount="435">
-        <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
+        <KeyColumn columnName="AirportCode" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Origins">
@@ -227,15 +227,15 @@
            dim_dest_airport. Dest City / Dest State are absent from the fact view. -->
 
       <DimensionAttribute name="Dest State" estimatedCount="54">
-        <KeyColumn columnName="StateName" type="String" dataType="String"/>
+        <KeyColumn columnName="StateName" dataType="String"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Dest City" estimatedCount="425">
-        <KeyColumn columnName="CityName" type="String" dataType="String"/>
+        <KeyColumn columnName="CityName" dataType="String"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Dest Airport" estimatedCount="436">
-        <KeyColumn columnName="AirportCode" type="String" dataType="String"/>
+        <KeyColumn columnName="AirportCode" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Destinations">
@@ -251,7 +251,7 @@
       <AttributeMapping attribute="Distance Group" factColumn="DistanceGroupKey"/>
 
       <DimensionAttribute name="Distance Group" estimatedCount="11">
-        <KeyColumn columnName="DistanceGroupKey" type="Numeric" dataType="Numeric"/>
+        <KeyColumn columnName="DistanceGroupKey" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Distances">
@@ -268,7 +268,7 @@
            applying that filter, which would silently change results. -->
 
       <DimensionAttribute name="Tail Number" estimatedCount="17180">
-        <KeyColumn columnName="Tail_Number" type="String" dataType="String"/>
+        <KeyColumn columnName="Tail_Number" dataType="String"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Tails">

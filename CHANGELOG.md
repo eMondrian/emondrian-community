@@ -10,6 +10,29 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.27
+
+Server `10.0.51` · modules `0.0.0.60` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.51` (engine 9.3.0-emondrian.51). The web tools and the entry page are unchanged.
+
+### Improved
+
+- **Power BI reports from MCP (`make_visual`, `make_page`, `make_project`) start from better defaults.**
+  - A `latest` slicer on Year selects the latest *complete* year: a year still in progress is passed over, and the result says which one (`skippedPartial`). `{"latest": true, "complete": false}` takes it anyway.
+  - Cards show the whole number (7,001,619, not 7M); `"displayUnits": "auto"` gives Desktop's default back.
+  - Slicers are dropdowns and show their field name once; `"style": "list"` and `"header": true` give the list and the header back.
+  - Line charts use the smallest axis font, so every year label is shown in full.
+- **OnTime schema:** the `KeyColumn` `type` attribute, which the server ignores, is gone, so loading OnTime logs 13 fewer warnings. The model and its numbers are unchanged.
+
+### New
+
+- **Horizontal bar charts.** `"type": "bar"` writes Power BI's clustered bar chart, with the same fields, sort and Top N filter as `column`.
+
+### Fixed
+
+- **`CASE` with no `WHEN`.** `CASE ELSE 1 END` failed with *Index 1 out of bounds for length 1*; it is now an ordinary "No function matches signature" error.
+
 ## 2026.10.26.1
 
 Server `10.0.50` · modules `0.0.0.58` · web tools `1.2.0` · entry `1.3.2`
