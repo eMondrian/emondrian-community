@@ -149,29 +149,29 @@
       </Hierarchy>
     </Dimension>
 
-    <Dimension name="Time" foreignKey="YearMonth"
+    <Dimension name="Time" type="TimeDimension" foreignKey="YearMonth"
                table="dim_time" primaryKey="YearMonth">
 
       <AttributeMapping attribute="Year"    factColumn="Year"/>
       <AttributeMapping attribute="Quarter" factColumn="Quarter"/>
       <AttributeMapping attribute="Month"   factColumn="Month"/>
 
-      <DimensionAttribute name="Year" estimatedCount="30">
+      <DimensionAttribute name="Year" estimatedCount="30" levelType="TimeYears">
         <KeyColumn columnName="Year" dataType="Numeric"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Quarter" estimatedCount="4">
+      <DimensionAttribute name="Quarter" estimatedCount="4" levelType="TimeQuarters">
         <KeyColumn columnName="Quarter" dataType="Numeric"/>
       </DimensionAttribute>
 
-      <DimensionAttribute name="Month" estimatedCount="12">
+      <DimensionAttribute name="Month" estimatedCount="12" levelType="TimeMonths">
         <KeyColumn columnName="Month" dataType="Numeric"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Time">
-        <Level name="Year"    approxRowCount="30"  uniqueMembers="true"  sourceAttribute="Year"/>
-        <Level name="Quarter" approxRowCount="116" uniqueMembers="false" sourceAttribute="Quarter" nameColumn="QuarterName"/>
-        <Level name="Month"   approxRowCount="346" uniqueMembers="false" sourceAttribute="Month"   nameColumn="MonthName"/>
+        <Level name="Year"    approxRowCount="30"  uniqueMembers="true"  levelType="TimeYears"    sourceAttribute="Year"/>
+        <Level name="Quarter" approxRowCount="116" uniqueMembers="false" levelType="TimeQuarters" sourceAttribute="Quarter" nameColumn="QuarterName"/>
+        <Level name="Month"   approxRowCount="346" uniqueMembers="false" levelType="TimeMonths"   sourceAttribute="Month"   nameColumn="MonthName"/>
       </Hierarchy>
     </Dimension>
 
