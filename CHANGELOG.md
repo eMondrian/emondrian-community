@@ -10,6 +10,17 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.27.4
+
+Server `10.0.51` · modules `0.0.0.64` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.51` (unchanged). The web tools and the entry page are unchanged.
+
+### Improved
+
+- **Power BI reports from MCP: `arrange_page` keeps charts wide enough.** Given the page's `catalog` and `cube`, it counts each line and column chart's categories, as `make_page` does, and gives it the width they need. Without them it says that no width was checked; `make_visual`'s result names the call to make.
+- **Power BI reports from MCP: charts wrap into a second row** when one row cannot give every chart the width its categories need, for new pages and re-arranged ones alike.
+
 ## 2026.10.27.3
 
 Server `10.0.51` · modules `0.0.0.63` · web tools `1.2.0` · entry `1.3.2`
