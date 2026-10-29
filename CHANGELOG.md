@@ -10,6 +10,45 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.29
+
+Server `10.0.57` · modules `0.0.0.71` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.57` (was `10.0.51`). The web tools and the entry page are unchanged.
+
+### Power BI Service through the on-premises data gateway
+
+- **The gateway's connection properties are accepted.** `EffectiveUserName`, `Roles` and `CustomData` no longer fail the request. `EffectiveUserName` is **accepted and ignored** unless the connecting account's role is granted impersonation (`mondrian.security.role.<role>.impersonate=allow` in `mondrian.properties`). This edition grants nothing, so every report viewer is served as the gateway's own connection: there is **no per-viewer security**.
+- **Rowset schemas declare the `xmlDocument` type**, which the Service's schema check required.
+- **XML/A property names are case-insensitive**, and unknown properties are ignored (logged once) instead of failing the request.
+- **`mondrian.xmla.providerVersion`** sets the server version reported in `DISCOVER_PROPERTIES` and `DISCOVER_XML_METADATA`. The default is unchanged.
+
+### DAX, as Power BI visuals send it
+
+- A measure referenced as `[Flights]` in a query that also defines a column named "Flights" resolves to the measure (it used to overflow the stack).
+- Matrix subtotals: `ROLLUP` uses the All member of the hierarchy the query names, so a matrix on Day of Week or Distance Group renders its totals.
+- An attribute hierarchy named after its dimension gets a unique name of its own, so it no longer clashes with the dimension's user hierarchy.
+- `SUMMARIZECOLUMNS` with `ROLLUPADDISSUBTOTAL` returns its subtotal rows and flag columns; table constructors `{ … }` and `TREATAS` over them are supported; `ISINSCOPE` is false on subtotal rows.
+- A drill-through combined with a "contains" filter on the same column no longer fails.
+- A text filter on a column whose key is numeric (Quarter) no longer fails with a type error.
+- A Top N visual filter is applied before a table's row limit, so the table shows the top N rows.
+- "Show items with no data" (`GENERATEALL`) is supported.
+- The field list leaves out measures the caller's role cannot access.
+- The OnTime sample shows names, not keys, for Quarter, Month, Day of Week and Distance Group.
+
+### Power BI reports from MCP
+
+- **New visual types for `make_visual`, `make_page` and `make_project`:** gauge, scatter (with Size and Play), stacked area, area, stacked column, 100% stacked column, ribbon, waterfall, funnel, donut and treemap; a line chart takes a second axis (`Y2`).
+- **`colors`** sets fixed colours for a chart's legend members or categories; **`averageLine`** draws an average line on a line chart.
+
+### Known limitations
+
+- The new Card visual with Categories is not supported.
+- The hierarchy slicer and small multiples are not yet verified.
+- No row-level or per-viewer security through the gateway (see above).
+- DAX covers what Power BI visuals generate on a live connection; time-intelligence functions are not implemented.
+- DAX and the MCP tools need a licence; this repository ships without one. A free 30-day evaluation key is at https://emondrian.com/license: put the `.lic` file into `modules/` next to `docker-compose.yml`; no restart is needed.
+
 ## 2026.10.27.4
 
 Server `10.0.51` · modules `0.0.0.64` · web tools `1.2.0` · entry `1.3.2`

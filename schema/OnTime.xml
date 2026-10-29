@@ -162,10 +162,12 @@
 
       <DimensionAttribute name="Quarter" estimatedCount="4" levelType="TimeQuarters">
         <KeyColumn columnName="Quarter" dataType="Numeric"/>
+        <NameColumn dataType="String" columnName="QuarterName"/>
       </DimensionAttribute>
 
       <DimensionAttribute name="Month" estimatedCount="12" levelType="TimeMonths">
         <KeyColumn columnName="Month" dataType="Numeric"/>
+        <NameColumn dataType="String" columnName="MonthName"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Time">
@@ -182,6 +184,7 @@
 
       <DimensionAttribute name="Day of Week" estimatedCount="7">
         <KeyColumn columnName="DayOfWeekKey" dataType="Numeric"/>
+        <NameColumn dataType="String" columnName="DayOfWeekName"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Days">
@@ -252,6 +255,7 @@
 
       <DimensionAttribute name="Distance Group" estimatedCount="11">
         <KeyColumn columnName="DistanceGroupKey" dataType="Numeric"/>
+        <NameColumn dataType="String" columnName="DistanceGroupName"/>
       </DimensionAttribute>
 
       <Hierarchy hasAll="true" allMemberName="All Distances">
