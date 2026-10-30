@@ -175,6 +175,73 @@ document Power BI Desktop receives on a live connection, so an agent can write
 Power BI report files that name fields the way the model does. It needs a
 licence granting `DAX` as well as `MCP`.
 
+### MCP traffic log
+
+Every message between the MCP server and agents is written to
+`logs/mcp-audit.log`, one JSON object per line, in both directions: who
+connected (session, client name and version, user agent, client network), what
+they asked (tool, catalog, cube, the MDX/DAX text) and what came back (status,
+error, duration, size, row count). It is on by default; nothing has to be
+installed.
+
+- **Client addresses are truncated** before anything is written: IPv4 to /24,
+  IPv6 to /48. The full address is never stored.
+- **Secrets are redacted**: password-, token- and key-like arguments, `Password=`
+  in connect strings, bearer credentials, PEM blocks, licence file names.
+- **The log can't be read through MCP**: `read_logs` does not list it.
+- **If logging can't keep up, MCP is not slowed down**: events are dropped and
+  counted. Once a minute an `audit_stats` line reports `dropped_total`.
+- The file rotates at 50 MB, and rotated files are deleted after 30 days.
+
+Settings, as `-D` options added to `JAVA_TOOL_OPTIONS` in `docker-compose.yml`:
+
+| Option | Default | |
+|---|---|---|
+| `emondrian.mcp.audit` | `metadata` | `off`, `metadata` (no arguments or results; the query text is kept), `full` (arguments and result text too) |
+| `emondrian.mcp.audit.maxBody` | `65536` | bytes per body field; longer ones are cut and flagged `<field>_truncated` |
+| `emondrian.mcp.audit.truncateIp` | `true` | `false` keeps full client addresses |
+| `emondrian.mcp.audit.trustedProxies` | `127.0.0.0/8,::1/128` | proxies whose `X-Forwarded-For`/`X-Real-IP` is believed; add your front door's network |
+| `emondrian.mcp.audit.fileMaxMb` / `fileMaxDays` | `50` / `30` | rotation |
+
+An event looks like this, shortened:
+
+```json
+{"ts":"2026-10-29T18:06:48.178Z","event":"mcp","direction":"response","transport":"streamable",
+ "session":"e939f111-…","client_name":"claude-code","client_ip":"203.0.113.0","principal":"anonymous",
+ "method":"tools/call","tool":"execute_query","catalog":"FoodMart","rows":3,"duration_ms":15,
+ "response_bytes":245,"status":"ok"}
+```
+
+Always present:
+- `ts` (UTC);
+- `event` (`mcp` or `audit_stats`);
+- `method`, `status` (`ok`/`error`), `principal`.
+
+When known, on `mcp` events:
+- `direction` (`request`/`response`/`notification`), `session`, `rpc_id`;
+- `client_name`/`client_version`/`protocol_version`, `client_ip`, `user_agent`;
+- `tool`, `resource`, `prompt`, `catalog`, `cube`, `query`, `query_language`;
+- `error_code` (a JSON-RPC code, `tool_error`, or `http_<status>`), `error_message`;
+- `duration_ms`, `request_bytes`, `response_bytes`, `rows`;
+- `args`/`result` (in `full` mode) or `arg_names` (in `metadata` mode).
+
+**Shipping it to your own Loki or ELK.** Tail the file the way you would any JSON
+log, and parse each line as JSON:
+- **Labels and keyword fields:** use only `direction`, `method`, `tool` and
+  `status`. Session, client and address are high-cardinality, so keep them in
+  the body.
+- **Timestamp:** take it from `ts`.
+
+Examples:
+- **Grafana Alloy or Promtail:** a file source on `logs/mcp-audit.log`, a JSON
+  stage extracting those four fields as labels, and a timestamp stage on `ts`
+  (RFC 3339).
+- **Filebeat:** a `filestream` input with the `ndjson` parser
+  (`target: ""`, `add_error_key: true`).
+
+The Enterprise edition ships this already wired to Loki, with a Grafana
+dashboard.
+
 ---
 
 ## Sample Data

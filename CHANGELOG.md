@@ -10,6 +10,31 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.10.30
+
+Server `10.0.58` · modules `0.0.0.74` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.58` (was `10.0.57`). The web tools and the entry page are unchanged. Upgrading is recommended for every installation that exposes the MCP endpoint.
+
+### MCP
+
+- **`execute_query` validates its `cube` argument.** It must be the exact name of a cube in the catalog; anything else is refused with the list of the catalog's cubes.
+- **Catalog arguments must be strings**, and a tool that requires `catalog` refuses a call without one before doing anything else.
+
+### MCP traffic log
+
+The MCP server now writes every message between it and agents to `logs/mcp-audit.log`, one JSON object per line, both directions:
+- the session, the client and its user agent, and the client network;
+- the tool, catalog, cube and query;
+- the status, error, duration, size and rows.
+
+- **On by default, in `metadata` mode**: no tool arguments or results, but the query text is kept. `full` adds them; `off` turns the log off (`emondrian.mcp.audit`).
+- **Client addresses are truncated before writing**: IPv4 to /24, IPv6 to /48, on by default (`emondrian.mcp.audit.truncateIp=false` keeps full addresses).
+- **The local file rotates at 50 MB**, and rotated files are deleted after 30 days.
+- Secrets and licence file names are redacted, and `read_logs` does not expose the log.
+
+See [MCP traffic log](README.md#mcp-traffic-log) in the README for the settings, the event format and how to ship it to Loki or ELK.
+
 ## 2026.10.29
 
 Server `10.0.57` · modules `0.0.0.71` · web tools `1.2.0` · entry `1.3.2`
