@@ -10,6 +10,21 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.02.1
+
+Server `10.0.63` · modules `0.0.0.76` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.63` (was `10.0.62`), modules `0.0.0.76` (were `0.0.0.74`). The web tools and the entry page are unchanged. Upgrading is recommended for every installation that connects Claude or another current MCP client.
+
+### MCP
+
+- **Claude can connect again.** Since about 21 October 2026, Claude clients (claude.ai, the desktop app, Claude Code) have sent new optional fields in their first `initialize` request. The MCP server rejected them, so every connection failed with HTTP 400 `Unrecognized field "form"` and the connector reported it could not reach the server. The server now ignores fields it does not know, as the protocol intends, so later additions do not break connecting either.
+
+### Server
+
+- **Queries no longer leave engine connections open.** Every MDX or DAX query, and every cancel request, used to leave one internal connection behind until the next full garbage collection, so the open-connections count only ever grew. They are now closed when the request ends.
+- **A failed request no longer leaves its session open.** A request sent without a session gets a temporary one, and after an error it stayed open until the idle timeout (`mondrian.server.IdleOrphanSessionTimeout`, one hour by default). It is now closed whether the request succeeds or fails.
+
 ## 2026.11.02
 
 Server `10.0.62` · modules `0.0.0.74` · web tools `1.2.0` · entry `1.3.2`
