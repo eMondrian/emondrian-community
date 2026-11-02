@@ -10,6 +10,22 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.02
+
+Server `10.0.62` · modules `0.0.0.74` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.62` (was `10.0.58`). The modules, web tools and entry page are unchanged.
+
+### Power BI Service
+
+- **Scheduled refresh through the on-premises data gateway works.** Before a refresh, the Service checks the model for changes. It sends a system-table query and asks for the server description, and both answers now match what Analysis Services returns. Refreshes had been failing with `FailedDeserializeSchema`; dashboard tiles now refresh on their own.
+- **System-table (DMV) queries** such as `SELECT [LAST_SCHEMA_UPDATE] FROM $SYSTEM.MDSCHEMA_CUBES` return only the selected columns, as a query result. `SELECT *` is accepted, column names are case-insensitive, and an unknown column is an error. `DBSCHEMA_CATALOGS.DATE_MODIFIED` is the time the schema was loaded.
+- **The server description** (`DISCOVER_XML_METADATA`) can be read by Microsoft's AMO/TOM client libraries. It reports a real edition and the server mode, and lists the databases.
+
+### Data sources
+
+- **Credentials can come from the environment.** A connect string in `datasources.xml` may contain `${env:EMONDRIAN_*}` placeholders. They are resolved when the connection is made, so the file is served and saved exactly as written, without the secret.
+
 ## 2026.10.30
 
 Server `10.0.58` · modules `0.0.0.74` · web tools `1.2.0` · entry `1.3.2`
