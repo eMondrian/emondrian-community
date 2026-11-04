@@ -10,6 +10,16 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.04.4
+
+Server `10.0.72` · modules `0.0.0.84` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.84` (were `0.0.0.83`). The server image, the web tools and the entry page are unchanged.
+
+### Power BI
+
+- **A matrix keeps its rows when the cube's default measure is empty.** A matrix with rows and columns kept a row only when the cube's default measure (its first measure) had data, not the measures the matrix shows. On a cube whose first measure is empty for some rows, those rows were dropped, and a matrix could show only its total. The measures in the visual now decide.
+
 ## 2026.11.04.3
 
 Server `10.0.72` · modules `0.0.0.83` · web tools `1.2.0` · entry `1.3.2`
