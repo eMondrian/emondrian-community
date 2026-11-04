@@ -10,6 +10,18 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.04.2
+
+Server `10.0.72` · modules `0.0.0.82` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.72` (was `10.0.70`). The modules, web tools and entry page are unchanged.
+
+### Server
+
+- **Clearer messages for mistyped MDX.** `[Store].[Store State].Members()` with parentheses failed with a bare `UnsupportedOperationException`; it now says `No function matches signature '<Level>.Members()'`. A bracket or a quote left open (`[Unit Sales` with no `]`) reached the client as "Unknown Error"; it is now a syntax error that says the bracket or quote is not closed.
+- **A no-break space is whitespace.** A query copied from a web page or a document often carries no-break spaces, which were a syntax error. They are now read as ordinary spaces.
+- **Quieter start.** The server no longer logs failed registrations for library classes bundled in the MCP module at every start.
+
 ## 2026.11.04.1
 
 Server `10.0.70` · modules `0.0.0.82` · web tools `1.2.0` · entry `1.3.2`
