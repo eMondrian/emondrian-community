@@ -10,6 +10,18 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.04.1
+
+Server `10.0.70` · modules `0.0.0.82` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.82` (were `0.0.0.81`). The server image, the web tools and the entry page are unchanged. Recommended for anyone using the time measures of 2026.11.04 in Power BI.
+
+### Time intelligence in Power BI
+
+- **A month with no data of its own stays in the table.** In a table of months with a one-year slicer, Power BI keeps a row while any of its measures is not blank. That check read the measures without the slicer's year, so a month with no sales but a year-to-date value (December, in a year whose data ends in November) was missing. It is there again, with its year-to-date, same-period-last-year and rolling values.
+- **The total row shows the year.** Power BI computes a table's total over the months it shows, and the time measures took that for a chosen month and were blank. The total row now shows the year's values: year-to-date, same period last year and year-over-year change, with no rolling value. Time measures created with `add_time_measures` before this release keep the old formula; delete them and run the tool again to get the new one.
+- **Several years in an MDX `WHERE` set** make the time measures fail with "the coordinate for the '[Time.Year]' hierarchy contains a set", as in Analysis Services. A subselect, which Excel sends for several years, works. The cube authoring guide now says so.
+
 ## 2026.11.04
 
 Server `10.0.70` · modules `0.0.0.81` · web tools `1.2.0` · entry `1.3.2`
