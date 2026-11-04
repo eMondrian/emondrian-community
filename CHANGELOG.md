@@ -10,6 +10,40 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.04
+
+Server `10.0.70` · modules `0.0.0.81` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.70` (was `10.0.63`), modules `0.0.0.81` (were `0.0.0.76`). The web tools and the entry page are unchanged.
+
+### Time intelligence
+
+- **Time measures in the schema.** The cube authoring guide (`get_cube_authoring_guide`) has a new section on year-to-date, quarter-to-date, same period last year, previous year, year-over-year change and rolling three months, written as calculated members. They give the same numbers in Excel, which uses the user hierarchy, and in Power BI, which uses the attribute hierarchies. A distinct count over a year to date is one query over those months, not the sum of the months. Ratios are built from the time measures of their parts, never by aggregating the ratio itself.
+- **New MCP tool `add_time_measures`.** It writes those measures for the stored measures you name, with the cube's own hierarchy names. It previews by default and changes the schema only with `save=true`. It is registered with the other write tools, so a server started with `emondrian.mcp.readOnly=true` does not offer it. It needs a time hierarchy with an All member and a month level; a week hierarchy beside it is left out.
+- **Power BI: a year chosen in a slicer reaches the time measures.** With one year chosen and months on the visual, year-to-date, same period last year and rolling measures use that year. With several values chosen there is no single period, so the time measures are blank, while plain measures add up over the selection.
+- Report-level DAX time functions such as `TOTALYTD` are not supported: Power BI does not offer report measures on this connection. Use the calculated members above.
+
+### Server
+
+- **Filters on the bundled FoodMart database return the right members.** A filter whose condition uses no measure, such as `Filter([Time].[Month].Members, 1 = 0)`, returned every member, and an aggregation over it returned the unfiltered total. The condition is now applied.
+- **An empty distinct count is empty.** A distinct count aggregated over an empty set returned `1.2345E-8`, which showed as `0`. The cell is now empty.
+- **Time calculations under a slicer.** A calculated member that reaches into another year, such as the same month last year or a rolling window across January, now gets that year under a subselect on the year. The cells on the axes are still restricted to the selection.
+- **A numeric key written as `1998.0`** (as Power BI sends it) now matches the member with key `1998` on ClickHouse.
+- **Comparing a member's name with text on a numeric key** (`[Time].[Month].CurrentMember.Name = "x"`) is no longer a SQL error.
+- **Calculated members with an explicit `MEMBER_ORDINAL`** no longer make the schema fail to load with "Ordinal N is not unique" when other calculated members are added.
+- **`validate_schema` warns about out-of-order cube elements.** A `<CalculatedMember>` after a `<DrillThroughAction>` (or any child of a cube out of the declared order) is ignored when the schema is read; the validator now says so.
+- **Boolean keys** are read as booleans, not `0`/`1`, so captions are right, filters on them work and Power BI sorts them correctly.
+- **Member names returned by the server parse back.** On a dimension whose attribute hierarchy carries the dimension's own name, a unique name returned by the server (from `TopCount`, say) was not found when sent back, and a calculated member defined there could be referred to by one spelling only. Both spellings now work.
+- **A measure filter with a custom aggregate function** (`aggregatorImplementation`, such as `uniqExact`) uses that function in the SQL it sends.
+- **Parallel queries and cancels** no longer fail now and then with `ConcurrentModificationException`, and ending a session the server no longer has is not logged as an error.
+- **Metrics:** the open-connections gauge (`emondrian_connections`) has samples again, and the query metrics carry a `language` label, `MDX` or `DAX`.
+
+### Power BI
+
+- **A model with an attribute named `<X> Key`** no longer collides with the hidden key property of `X`, which made Power BI refuse the model.
+- **DAX resolves hierarchies and levels by object.** On a dimension whose attribute hierarchy carries the dimension's own name, totals (`ROLLUP`) failed and columns could return the All member. A level named differently from the attribute it is built on is a column again.
+- `make_page` and `make_project` write an empty key as `null`.
+
 ## 2026.11.02.1
 
 Server `10.0.63` · modules `0.0.0.76` · web tools `1.2.0` · entry `1.3.2`
