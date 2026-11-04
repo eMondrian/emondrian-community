@@ -295,6 +295,30 @@ else
     echo ".env: already exists"
 fi
 
+# A .env written by hand often has only the line someone needed. Compose fills in
+# the service switches it lacks, but say which settings are missing, so a value
+# left out on purpose and one forgotten are not confused.
+MISSING_ENV_KEYS=()
+
+while IFS= read -r key; do
+    # ENABLE_SERVICE_WEB_OLAP_CLIENT is the older name of ENABLE_SERVICE_OLAP_CLIENT.
+    if [ "$key" = "ENABLE_SERVICE_OLAP_CLIENT" ] &&
+        grep -qE '^[[:space:]]*ENABLE_SERVICE_WEB_OLAP_CLIENT[[:space:]]*=' .env; then
+        continue
+    fi
+
+    if ! grep -qE "^[[:space:]]*${key}[[:space:]]*=" .env; then
+        MISSING_ENV_KEYS+=("$key")
+    fi
+done < <(grep -oE '^[A-Z_]+=' .env.example | tr -d '=')
+
+if [ "${#MISSING_ENV_KEYS[@]}" -gt 0 ]; then
+    echo
+    echo "WARNING: .env does not set: ${MISSING_ENV_KEYS[*]}"
+    echo "Their defaults from .env.example apply. To change one, copy its line"
+    echo "from .env.example into .env."
+fi
+
 # ============================================================
 # Web front door port
 # ============================================================
@@ -573,6 +597,21 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
 done
 
 echo "Web interface: OK"
+
+# The main page answers even when .env turns the server's routes off, so check
+# /xmla itself: a 404 there means BI tools cannot connect.
+XMLA_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$WEB_BASE/xmla" || true)"
+
+if [ "$XMLA_STATUS" = "404" ] || [ "$XMLA_STATUS" = "000" ]; then
+    echo
+    "${DOCKER[@]}" compose logs --tail=50 emondrian_entry || true
+
+    fail "$WEB_BASE/xmla is not available (HTTP $XMLA_STATUS).
+Check ENABLE_SERVICE_EMONDRIAN in .env: it must be true, or left out.
+Then run ./setup.sh again."
+fi
+
+echo "XMLA endpoint: OK"
 
 # ============================================================
 # Finished

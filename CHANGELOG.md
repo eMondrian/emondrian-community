@@ -10,6 +10,20 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.04.3
+
+Server `10.0.72` · modules `0.0.0.83` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.83` (were `0.0.0.82`), `docker-compose.yml` and the setup scripts. The server image, the web tools and the entry page are unchanged.
+
+### MCP
+
+- **Power BI projects get the address Desktop connects to.** `make_project`'s `dataSource` is the XML/A address Power BI Desktop uses to reach this server, which is often another machine than the one eMondrian runs on. Its description now says so and tells the agent to ask you when it does not know the address; an agent used to guess `http://localhost:8080/emondrian/xmla`, and Desktop could not open the project without an edit. Tell the agent the address, e.g. `http://my-server/xmla`, when you ask it for a project.
+
+### Setup
+
+- **A `.env` with only some settings works.** A `.env` holding just `EMONDRIAN_PORT` left the front door without `/xmla`, the tools and MCP (all 404) while the setup script said "ready". Every route is now on unless `.env` turns it off; the setup scripts list the settings `.env` leaves out, and stop with an error when `/xmla` does not answer.
+
 ## 2026.11.04.2
 
 Server `10.0.72` · modules `0.0.0.82` · web tools `1.2.0` · entry `1.3.2`

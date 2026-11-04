@@ -462,6 +462,39 @@ else {
     Write-Host ".env: already exists"
 }
 
+# A .env written by hand often has only the line someone needed. Compose fills in
+# the service switches it lacks, but say which settings are missing, so a value
+# left out on purpose and one forgotten are not confused.
+$EnvLines = Get-Content -Path $EnvFile
+$MissingEnvKeys = @()
+
+foreach ($ExampleLine in (Get-Content -Path $EnvExample)) {
+    if ($ExampleLine -notmatch '^([A-Z_]+)=') {
+        continue
+    }
+
+    $Key = $Matches[1]
+
+    # ENABLE_SERVICE_WEB_OLAP_CLIENT is the older name of ENABLE_SERVICE_OLAP_CLIENT.
+    if (
+        $Key -eq "ENABLE_SERVICE_OLAP_CLIENT" -and
+        ($EnvLines -match '^\s*ENABLE_SERVICE_WEB_OLAP_CLIENT\s*=')
+    ) {
+        continue
+    }
+
+    if (-not ($EnvLines -match "^\s*$Key\s*=")) {
+        $MissingEnvKeys += $Key
+    }
+}
+
+if ($MissingEnvKeys.Count -gt 0) {
+    Write-Host ""
+    Write-Host "WARNING: .env does not set: $($MissingEnvKeys -join ' ')"
+    Write-Host "Their defaults from .env.example apply. To change one, copy its line"
+    Write-Host "from .env.example into .env."
+}
+
 # ============================================================
 # Web front door port
 # ============================================================
@@ -773,6 +806,34 @@ if (-not $WebReady) {
 }
 
 Write-Host "Web interface: OK"
+
+# The main page answers even when .env turns the server's routes off, so check
+# /xmla itself: a 404 there means BI tools cannot connect.
+$XmlaStatus = 0
+
+try {
+    $XmlaStatus = (Invoke-WebRequest `
+        -Uri "$WebBase/xmla" `
+        -UseBasicParsing `
+        -TimeoutSec 10).StatusCode
+}
+catch {
+    if ($null -ne $_.Exception.Response) {
+        $XmlaStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($XmlaStatus -eq 404 -or $XmlaStatus -eq 0) {
+    Write-Host ""
+
+    & docker compose logs --tail=50 emondrian_entry
+
+    Fail "$WebBase/xmla is not available (HTTP $XmlaStatus).
+Check ENABLE_SERVICE_EMONDRIAN in .env: it must be true, or left out.
+Then run the setup script again."
+}
+
+Write-Host "XMLA endpoint: OK"
 
 # ============================================================
 # Finished
