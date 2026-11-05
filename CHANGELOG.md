@@ -10,6 +10,21 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.05
+
+Server `10.0.73` · modules `0.0.0.85` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.73` (was `10.0.72`), modules `0.0.0.85` (were `0.0.0.84`). The web tools and the entry page are unchanged.
+
+### Server
+
+- **Power BI slicers on a virtual cube.** In a virtual cube, a measure wrapped in `ValidMeasure` failed when a Power BI slicer was set on a dimension its own cube does not have, and the visual showed "Error fetching data". Power BI sends every slicer as a subselect, which now leaves such a measure unrestricted, as the same member in a `WHERE` clause always did. Slicers on dimensions the measure's cube has still filter it.
+- **Schema validation of virtual cubes.** `validate_schema` now checks the attributes of `VirtualCube`, `CubeUsage` and `VirtualCubeMeasure`. `ignoreUnrelatedDimensions` on a `VirtualCubeMeasure`, where the server ignores it, gets a warning that says it belongs on `<CubeUsage>`.
+
+### MCP
+
+- The cube authoring guide explains both, in its section on several fact tables.
+
 ## 2026.11.04.4
 
 Server `10.0.72` · modules `0.0.0.84` · web tools `1.2.0` · entry `1.3.2`
