@@ -10,6 +10,24 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.05.1
+
+Server `10.0.74` · modules `0.0.0.89` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.74` (was `10.0.73`), modules `0.0.0.89` (were `0.0.0.85`). The web tools and the entry page are unchanged.
+
+### Server
+
+- **Power BI filters on attributes with empty values.** Clicking a row or a slicer value in Power BI on an attribute that has empty (NULL) members put an error message in the cells ("Expected value of type STRING; got value '#null'") instead of the numbers. The empty member is now passed over, as any member that does not match.
+- **Prior-year and plan columns under Power BI slicers.** A calculated measure that reads another year or another version (prior year, plan) showed the right totals but was empty on every row of a matrix or chart once slicers were set, because its cells were read together with the actual's and under the actual's year. They are now read under their own coordinates, as the same calculation already did with a `WHERE` clause.
+
+### Power BI reports from MCP
+
+- **Single-select slicers.** A slicer with `"singleSelect": true` lets the reader pick one value at a time. It needs a `selection` (one value, or `{"latest": true}`), because Power BI Desktop otherwise selects the first value when the report opens, even one with no data.
+- **Totals off.** `"totals": false` turns off a matrix's subtotals and grand totals; `{"rows": false}` or `{"columns": false}` turns off one side. On a table it removes the total row.
+- **Cards fit their value.** A card is as wide as its value when the page opens. When the cards do not fit beside the slicers, they get a row of their own, so a long figure such as `1,464,108,407.19` is no longer cut off.
+- **Measure folders.** A measure's `displayFolder` now groups it in Power BI's Data pane; `A\B` gives a subfolder.
+
 ## 2026.11.05
 
 Server `10.0.73` · modules `0.0.0.85` · web tools `1.2.0` · entry `1.3.2`
