@@ -11,6 +11,10 @@ services:
       - ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
       #- ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
       - ./modules:/usr/local/tomcat/webapps/emondrian/modules
+      # JDBC drivers installed at run time (MCP install_driver); kept across image upgrades.
+      - ./drivers:/usr/local/tomcat/webapps/emondrian/drivers
+      # Files you hand to the server (a driver jar, say), read-only to it: MCP list_shared_files.
+      - ./share:/share:ro
     # Data-source credentials (EMONDRIAN_SRC_<NAME>_USER / _PASSWORD / _TOKEN) come from .env; a
     # connect string names them as ${env:EMONDRIAN_SRC_SALES_PASSWORD}. Restart after editing .env.
     env_file:

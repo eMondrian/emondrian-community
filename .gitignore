@@ -1,3 +1,5 @@
 .env
 logs/
 modules/*.lic
+drivers/
+share/

@@ -421,9 +421,9 @@ Then run ./setup.sh again."
     esac
 fi
 
-# Create the bind-mounted log directory first. Left to Docker it is created as
+# Create the bind-mounted directories first. Left to Docker they are created as
 # root, and then the clone cannot be deleted without sudo.
-mkdir -p logs
+mkdir -p logs drivers share
 
 
 if ! "${DOCKER[@]}" compose up -d; then

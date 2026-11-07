@@ -278,6 +278,32 @@ with a JDBC connect string and the path to your schema file. Inside a `<Catalog>
 write `<DataSourceInfo>` **before** `<Definition>` — the parser reads those two
 elements in order, and reversing them silently drops your connect string.
 
+### Connecting a new database with an agent
+
+An agent connected over MCP can register a catalog for your own database
+(`save_catalog`). Three things on the server side support that:
+
+- **Credentials go in `.env`, not in `datasources.xml`.** Add the database's
+  user and password (or token) to `.env` as `EMONDRIAN_SRC_<NAME>_USER`,
+  `EMONDRIAN_SRC_<NAME>_PASSWORD` or `EMONDRIAN_SRC_<NAME>_TOKEN`, then restart
+  the server with `docker compose up -d`. A connect string names them as
+  `${env:EMONDRIAN_SRC_SALES_PASSWORD}`, and the value is read only when a
+  connection opens. `save_catalog` refuses a connect string that has a password
+  or token written into it. MCP answers show `***` in place of these values.
+  `list_source_credentials` shows which variables are set, never their values.
+- **JDBC drivers** for databases the image does not include can be installed
+  with `install_driver`, from Maven Central coordinates
+  (`maven:org.postgresql:postgresql:42.7.4`) or from a file in the share. The
+  jar's SHA-256 is required. Downloads are https only, from the hosts in
+  `emondrian.drivers.allowedHosts` (Maven Central by default). Installed jars
+  are kept in `drivers/` and loaded without a restart; `list_drivers` lists
+  them.
+- **The share** is the `share/` directory next to `docker-compose.yml`,
+  mounted read-only at `/share`. Put a file there (a driver jar from your
+  vendor, for example) and an agent can use it as `share:drivers/x.jar`;
+  `list_shared_files` lists what is there. Paths outside the share, `..` and
+  links that lead out of it are refused.
+
 ---
 
 ## Stopping and Resetting
