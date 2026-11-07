@@ -10,6 +10,20 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.07.2
+
+Server `10.0.84` · modules `0.0.0.97` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.97` (were `0.0.0.96`). The server image, the web tools and the entry page are unchanged.
+
+### DAX
+
+- **`ASC` and `DESC` in `TOPN` and `SAMPLE`.** `TOPN(10, 'Table', [Measure], DESC)` was a syntax error: the keywords were accepted only after `ORDER BY`. They now work wherever a sort order goes, in any case, and mean the same as the numbers `0` (descending) and `1` (ascending) that Power BI writes.
+
+### Power BI reports from MCP
+
+- `make_visual` describes the order of conditional-formatting rules plainly: list them as Power BI Desktop's Rules dialog shows them, top to bottom.
+
 ## 2026.11.07.1
 
 Server `10.0.84` · modules `0.0.0.96` · web tools `1.2.0` · entry `1.3.2`
