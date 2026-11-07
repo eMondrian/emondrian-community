@@ -298,6 +298,17 @@ An agent connected over MCP can register a catalog for your own database
   `emondrian.drivers.allowedHosts` (Maven Central by default). Installed jars
   are kept in `drivers/` and loaded without a restart; `list_drivers` lists
   them.
+- **What the agent sees of the data is a setting.** By default an agent reads a
+  catalog's data like any other client. For the agent to see only the schema
+  and synthetic data, set `agentAccess="synthetic-only"` on the `<Catalog>` in
+  `datasources.xml`, or `-Demondrian.mcp.agentAccess=synthetic-only` for every
+  catalog on the server. Then the structure tools (`get_schema`, `save_schema`,
+  `validate_schema`, `describe_source`, `validate_source_sql`) work on the real
+  catalog, and the tools that return values or member names refuse and point
+  to `<Catalog> (synthetic)`, which `generate_synthetic_catalog` builds.
+  `describe_source` and `validate_source_sql` return structure only either way:
+  tables, columns, types and keys, no rows. Excel, Power BI and the web client
+  are not affected by this setting.
 - **The share** is the `share/` directory next to `docker-compose.yml`,
   mounted read-only at `/share`. Put a file there (a driver jar from your
   vendor, for example) and an agent can use it as `share:drivers/x.jar`;
