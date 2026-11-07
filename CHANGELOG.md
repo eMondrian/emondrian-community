@@ -10,6 +10,22 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.07.1
+
+Server `10.0.84` · modules `0.0.0.96` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.96` (were `0.0.0.95`). The server image, the web tools and the entry page are unchanged.
+
+### Power BI reports from MCP
+
+- **Tooltips.** A column or bar chart takes measures in `Tooltips`, shown when a bar is hovered. `sort` can name one of them, which sorts a chart by a measure it does not show.
+- **Conditional formatting in tables and matrices.** `conditionalFormatting` colours a measure's background as a gradient from lowest to highest, colours its background or font by rules on the measure itself or on another measure, or adds data bars (tables). List the rules as Power BI Desktop's Rules dialog shows them, top to bottom: where two match, the later one wins.
+- **Tooltip pages.** `make_page` with `"tooltip": true` makes a 400 x 300 page that a chart shows on hover, filtered to the hovered bar; the chart names it with `"tooltipPage"`. The page's visuals are placed for that size.
+
+### Known limitations
+
+- Power BI does not offer three of its visuals on a live connection to eMondrian: the new card visual with categories, a slicer on a hierarchy, and small multiples. Power BI itself declines them for this kind of source; the classic card, slicers on a column and separate charts work.
+
 ## 2026.11.07
 
 Server `10.0.84` · modules `0.0.0.95` · web tools `1.2.0` · entry `1.3.2`
