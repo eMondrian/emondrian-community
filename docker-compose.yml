@@ -11,6 +11,11 @@ services:
       - ./schema:/usr/local/tomcat/webapps/emondrian/WEB-INF/schema
       #- ./clickhouse-jdbc-0.3.2-patch10-all.jar:/usr/local/tomcat/webapps/emondrian/WEB-INF/lib/clickhouse-jdbc-0.3.2-patch10-all.jar
       - ./modules:/usr/local/tomcat/webapps/emondrian/modules
+    # Data-source credentials (EMONDRIAN_SRC_<NAME>_USER / _PASSWORD / _TOKEN) come from .env; a
+    # connect string names them as ${env:EMONDRIAN_SRC_SALES_PASSWORD}. Restart after editing .env.
+    env_file:
+      - path: .env
+        required: false
     environment:
       TZ: Europe/Zurich
       # Tomcat defaults to 0027, which makes ./logs unreadable to the host user.
