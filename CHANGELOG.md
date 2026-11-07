@@ -10,6 +10,34 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.07
+
+Server `10.0.84` · modules `0.0.0.95` · web tools `1.2.0` · entry `1.3.2`
+
+Docker image `emondrian/emondrian:10.0.84` (was `10.0.74`), modules `0.0.0.95` (were `0.0.0.89`). The web tools and the entry page are unchanged.
+
+### Power BI
+
+- **Selecting a value in a Top N chart.** Clicking a bar in a chart limited to its Top N showed the Top N's total in the other visuals instead of the clicked value's, and prior-year and plan columns were blank for it. The selection is now the clicked value within the Top N, for every measure.
+- **Slicer lists follow the other slicers.** A slicer on one attribute listed every value even when a slicer on another attribute of the same dimension was set (every city under a state filter). It now lists only the values that exist together with the selection, as Analysis Services does.
+- **Several values selected in a slicer.** Visuals that filter on the slicer's own field failed under a slicer with more than one value selected; they now show the numbers.
+- **Top N over two fields** with fewer rows of data than N could return wrong rows; it returns the rows with data, then the rest.
+- **Faster pages under slicers.** Cells and Top N filters read under slicers use the cube's aggregate tables where one carries the slicer's columns; a page that took seconds can take a fraction of one. Before, a Top N under slicers could pick an aggregate table it could not join and run for minutes.
+- **Filters:** `'T'[C] IN {"a", "b"}`, and `= BLANK()` / `<> BLANK()` on an attribute with empty values.
+
+### DAX for hand-written queries
+
+- New: `SELECTEDVALUE`, `HASONEVALUE`, `REMOVEFILTERS`, `VAR ... RETURN`, `DATEDIFF`, `EOMONTH`, `WEEKDAY`, `ROUNDUP`, `ROUNDDOWN`, `CEILING`, `FLOOR`, `MOD`, `LOG`, `EXACT`, `SUBSTITUTE`, and `SUM`/`AVERAGE`/`MIN`/`MAX`/`COUNT`/`DISTINCTCOUNT` of a column, which answer with the measure to use.
+- `REPLACE` replaces by position, as in DAX (it found and replaced text).
+- `VALUES` and `COUNTROWS` follow the filters in effect; `CALCULATE` takes OR and IN conditions, `ALL('T')`, `ALL(c1, c2)`, `KEEPFILTERS` and conditions over several columns. `SAMPLE(n, ...)` returns n rows.
+- Forms that are not supported give a clear error that quotes the expression, instead of being ignored.
+
+### Excel and MDX
+
+- **`NON EMPTY` in Excel pivots.** With subtotals in a pivot, rows came back grouped in the wrong order. A calculated measure that sets a member of a field on the rows (for example, a measure fixed to one year) lost rows that had values. Both are fixed.
+- **`NON EMPTY` with measures that use their own aggregate function** (`aggregatorImplementation`) returned no rows for crossjoins whose combinations had data.
+- A cache flush now also clears the cells read under a subselect.
+
 ## 2026.11.05.1
 
 Server `10.0.74` · modules `0.0.0.89` · web tools `1.2.0` · entry `1.3.2`
