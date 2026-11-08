@@ -429,6 +429,7 @@ $RequiredFiles = @(
     "schema\Foodmart.xml",
     "schema\OnTime.xml",
     "clickhouse\init-scripts\init-ontime.sh",
+    "clickhouse\init-scripts\init-synthetic.sh",
     "clickhouse\scripts\setup-ontime.ps1"
 )
 
@@ -460,6 +461,24 @@ if (-not (Test-Path $EnvFile)) {
 }
 else {
     Write-Host ".env: already exists"
+}
+
+# The synthetic users' passwords: random, filled in once, kept afterwards.
+foreach ($Key in @("EMONDRIAN_SYN_WRITER_PASSWORD", "EMONDRIAN_SYN_READER_PASSWORD")) {
+    $Lines = @(Get-Content -Path $EnvFile)
+    if (-not ($Lines | Where-Object { $_ -match "^\s*$Key=\S" })) {
+        $Bytes = New-Object byte[] 48
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($Bytes)
+        $Value = (([Convert]::ToBase64String($Bytes)) -replace '[^A-Za-z0-9]', '').Substring(0, 24)
+        if ($Lines | Where-Object { $_ -match "^\s*$Key=" }) {
+            $Lines = $Lines | ForEach-Object { if ($_ -match "^\s*$Key=") { "$Key=$Value" } else { $_ } }
+        }
+        else {
+            $Lines += "$Key=$Value"
+        }
+        Set-Content -Path $EnvFile -Value $Lines
+        Write-Host ".env: $Key set"
+    }
 }
 
 # A .env written by hand often has only the line someone needed. Compose fills in

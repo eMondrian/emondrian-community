@@ -34,6 +34,8 @@ services:
     depends_on:
       ontime-init:
         condition: service_completed_successfully
+      synthetic-init:
+        condition: service_completed_successfully
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.3.2.23
@@ -68,6 +70,22 @@ services:
       clickhouse:
         condition: service_healthy
     entrypoint: ["/bin/bash", "/init-ontime.sh"]
+    restart: "no"
+
+  # The ClickHouse users of synthetic catalogs (modules/synthetic/clickhouse.properties), cut off
+  # from the real data. Their passwords are in .env.
+  synthetic-init:
+    image: clickhouse/clickhouse-server:24.3.2.23
+    volumes:
+      - ./clickhouse/init-scripts/init-synthetic.sh:/init-synthetic.sh:ro
+    network_mode: "service:clickhouse"
+    environment:
+      EMONDRIAN_SYN_WRITER_PASSWORD: ${EMONDRIAN_SYN_WRITER_PASSWORD:-}
+      EMONDRIAN_SYN_READER_PASSWORD: ${EMONDRIAN_SYN_READER_PASSWORD:-}
+    depends_on:
+      ontime-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/bash", "/init-synthetic.sh"]
     restart: "no"
 
   olapClient:

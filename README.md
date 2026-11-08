@@ -300,22 +300,63 @@ An agent connected over MCP can register a catalog for your own database
   `emondrian.drivers.allowedHosts` (Maven Central by default). Installed jars
   are kept in `drivers/` and loaded without a restart; `list_drivers` lists
   them.
-- **What the agent sees of the data is a setting.** By default an agent reads a
-  catalog's data like any other client. For the agent to see only the schema
-  and synthetic data, set `agentAccess="synthetic-only"` on the `<Catalog>` in
-  `datasources.xml`, or `-Demondrian.mcp.agentAccess=synthetic-only` for every
-  catalog on the server. Then the structure tools (`get_schema`, `save_schema`,
-  `validate_schema`, `describe_source`, `validate_source_sql`) work on the real
-  catalog, and the tools that return values or member names refuse and point
-  to `<Catalog> (synthetic)`, which `generate_synthetic_catalog` builds.
+- **What the agent sees of the data is an option, off by default.** By
+  default an agent reads a catalog's data like any other client
+  (`agentAccess="real"`). See [Synthetic catalogs](#synthetic-catalogs) for
+  how to give agents only the schema and generated data instead.
   `describe_source` and `validate_source_sql` return structure only either way:
   tables, columns, types and keys, no rows. Excel, Power BI and the web client
-  are not affected by this setting.
+  are never affected.
 - **The share** is the `share/` directory next to `docker-compose.yml`,
   mounted read-only at `/share`. Put a file there (a driver jar from your
   vendor, for example) and an agent can use it as `share:drivers/x.jar`;
   `list_shared_files` lists what is there. Paths outside the share, `..` and
   links that lead out of it are refused.
+
+### Synthetic catalogs
+
+A synthetic catalog, `<Catalog> (synthetic)`, has a real catalog's cubes,
+dimensions, measures and roles over generated data, so an agent can build and
+test reports without seeing real numbers. Member names are generated
+(`Store City 017`), member counts are the real ones rounded up to a power of
+ten, and values are simple fixed amounts. A report built on the synthetic
+catalog moves to the real one by changing only the catalog name.
+
+It needs the synthetic module (`modules/emondrian-synthetic-*.jar`, included)
+and a licence key that includes `SYNTHETIC`. Generated data goes to the bundled
+ClickHouse, into `syn_*` databases, written and read by two users that
+`setup.sh` creates with random passwords kept in `.env`
+(`EMONDRIAN_SYN_WRITER_PASSWORD`, `EMONDRIAN_SYN_READER_PASSWORD`). Neither user
+can read the real data in that ClickHouse (`default`, where OnTime is). If you
+load a database of your own into it, add a `REVOKE` for it to
+`clickhouse/init-scripts/init-synthetic.sh` and run `docker compose up -d`.
+
+Nothing is generated on its own. Ask an agent, or call the MCP tool
+`generate_synthetic_catalog` with `{"catalog": "FoodMart"}`, then
+`synthetic_catalog_status` until it says `done`.
+
+**Turning it on.** Agents still read real data until you say otherwise:
+
+- For one catalog, add `agentAccess="synthetic-only"` to its `<Catalog>` in
+  `datasources.xml`. It applies from the next MCP call. If it does not (some
+  editors replace the file, and the container keeps seeing the old one), restart
+  the eMondrian service. `generate_synthetic_catalog` with
+  `"restrictSource": true` sets the attribute for you.
+- For every catalog on the server, including ones added later, add
+  `JAVA_TOOL_OPTIONS=-Demondrian.mcp.agentAccess=synthetic-only` to `.env` and run
+  `docker compose up -d --force-recreate eMondrian`.
+
+Then the structure tools (`get_schema`, `save_schema`, `validate_schema`,
+`save_catalog`, `describe_source`, `validate_source_sql`) work on the real
+catalog, and the tools that return values or member names refuse and point to
+`<Catalog> (synthetic)`. `list_catalogs` marks such a catalog. Without the
+synthetic module or its licence, the data tools still refuse.
+`agentAccess="none"` hides a catalog from agents completely.
+
+**Turning it off.** Remove the attribute (or set `agentAccess="real"`), or remove
+the `JAVA_TOOL_OPTIONS` line from `.env` and run
+`docker compose up -d --force-recreate eMondrian`. Where both are set, the
+stricter one applies.
 
 ---
 

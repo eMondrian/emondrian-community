@@ -10,6 +10,29 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.08.1
+
+Server `10.0.85` · modules `0.0.0.98` (now with `synthetic`) · web tools `1.2.0` · entry `1.3.2`
+
+The server image, the web tools and the entry page are unchanged. `modules/` now includes the synthetic module, and `docker-compose.yml` gains a one-time `synthetic-init` service.
+
+### Synthetic catalogs
+
+- **The synthetic module is part of Community**, under a licence key that includes `SYNTHETIC`, as DAX and MCP need theirs. New evaluation keys include it; a key issued earlier keeps the modules it was issued with, so get a new one to try it.
+- A synthetic catalog, `<Catalog> (synthetic)`, has a real catalog's cubes, dimensions, measures and roles over generated data. An agent builds it with `generate_synthetic_catalog` and follows it with `synthetic_catalog_status`. Nothing is generated on its own.
+- Generated data goes to the bundled ClickHouse, into `syn_*` databases, through two users that cannot read the real data there. `setup.sh` (and `windows-setup.ps1`) creates their passwords in `.env` as `EMONDRIAN_SYN_WRITER_PASSWORD` and `EMONDRIAN_SYN_READER_PASSWORD`. **Upgrading:** run `./setup.sh` once, or set both in `.env` yourself, then `docker compose up -d`. Without them the server starts as before and synthetic catalogs cannot be generated.
+- If you load a database of your own into the bundled ClickHouse, add a `REVOKE` for it to `clickhouse/init-scripts/init-synthetic.sh`.
+
+### What an agent sees: an option, off by default
+
+Agents read real data, as before, unless you turn the option on. Nothing in `datasources.xml` or `.env.example` turns it on.
+
+- **On, for one catalog:** add `agentAccess="synthetic-only"` to its `<Catalog>` in `datasources.xml` (or call `generate_synthetic_catalog` with `"restrictSource": true`). It applies from the next MCP call; restart the eMondrian service if your editor replaced the file.
+- **On, for every catalog:** add `JAVA_TOOL_OPTIONS=-Demondrian.mcp.agentAccess=synthetic-only` to `.env` and run `docker compose up -d --force-recreate eMondrian`.
+- **Off:** remove the attribute (or set `agentAccess="real"`), or remove the `JAVA_TOOL_OPTIONS` line and recreate the service. Where both are set, the stricter one applies.
+
+When it is on, the structure tools work on the real catalog and the tools that return values or member names refuse and point to `<Catalog> (synthetic)`, as described in 2026.11.08. The README's "Synthetic catalogs" section has the details.
+
 ## 2026.11.08
 
 Server `10.0.85` · modules `0.0.0.98` · web tools `1.2.0` · entry `1.3.2`

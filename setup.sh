@@ -270,6 +270,7 @@ REQUIRED_FILES=(
     "schema/Foodmart.xml"
     "schema/OnTime.xml"
     "clickhouse/init-scripts/init-ontime.sh"
+    "clickhouse/init-scripts/init-synthetic.sh"
     "clickhouse/scripts/setup-ontime.sh"
 )
 
@@ -294,6 +295,19 @@ if [ ! -f ".env" ]; then
 else
     echo ".env: already exists"
 fi
+
+# The synthetic users' passwords: random, filled in once, kept afterwards.
+for key in EMONDRIAN_SYN_WRITER_PASSWORD EMONDRIAN_SYN_READER_PASSWORD; do
+    if ! grep -qE "^[[:space:]]*${key}=[^[:space:]]" .env; then
+        value=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)
+        if grep -qE "^[[:space:]]*${key}=" .env; then
+            sed -i.bak "s|^[[:space:]]*${key}=.*|${key}=${value}|" .env && rm -f .env.bak
+        else
+            printf '%s=%s\n' "$key" "$value" >> .env
+        fi
+        echo ".env: ${key} set"
+    fi
+done
 
 # A .env written by hand often has only the line someone needed. Compose fills in
 # the service switches it lacks, but say which settings are missing, so a value
