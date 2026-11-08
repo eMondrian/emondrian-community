@@ -10,6 +10,21 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.08.3
+
+Server `10.0.85` · modules `0.0.0.100` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.100` (were `0.0.0.99`). The server image, the web tools, the entry page and `docker-compose.yml` are unchanged.
+
+### Deleting a catalog through MCP
+
+- **`delete_catalog`** deletes a catalog in one call: its entry in `datasources.xml`, its schema file, its `<Catalog> (synthetic)` catalog with the generated schemas, and the generated `syn_*` databases. No restart is needed; the catalog is gone for the next request, and a session that still had it open fails on its next query.
+- The deletion is permanent: nothing is kept aside. Keep your schemas in git if you may want them back; synthetic data can be generated again.
+- A schema file that another catalog also uses is kept, and the answer says which catalog uses it. Given `<Catalog> (synthetic)`, only the synthetic catalog and its data are deleted.
+- With the Enterprise Dashboard application, a catalog that dashboards read is not deleted unless `ignoreDashboards` is true, and the dashboards are named in the answer; they are never changed.
+- **`delete_schema`** deletes a schema file under `/WEB-INF/schema/` that no catalog uses any more.
+- Both need the same rights as `save_catalog`, and a server started with `-Demondrian.mcp.readOnly=true` does not offer them.
+
 ## 2026.11.08.2
 
 Server `10.0.85` · modules `0.0.0.99` · web tools `1.2.0` · entry `1.3.2`

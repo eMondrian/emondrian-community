@@ -166,12 +166,14 @@ over XML/A, the browser client and the editors need no key at all.
 
 Among the tools: `list_catalogs`, `get_schema`, `get_csdl`, `execute_query`,
 `validate_schema`, `get_cube_authoring_guide`, `get_properties`, `save_schema`,
-`save_catalog`, `read_logs`, and for connecting a new database
+`save_catalog`, `delete_catalog`, `delete_schema`, `read_logs`, and for connecting a new database
 `list_source_credentials`, `describe_source`, `validate_source_sql`,
 `install_driver`, `list_drivers` and `list_shared_files` (see below). Several
 read or **write** server state rather than query data — `save_schema`
-overwrites a catalog's schema XML, `save_catalog` edits the catalog registry
-and `install_driver` adds a JDBC driver to the server. On this edition nothing is authenticated, so treat MCP access as
+overwrites a catalog's schema XML, `save_catalog` edits the catalog registry,
+`delete_catalog` deletes a catalog together with its schema file, its synthetic
+catalog and the generated data (permanently: keep your schemas in git), and
+`install_driver` adds a JDBC driver to the server. On this edition nothing is authenticated, so treat MCP access as
 administrative access.
 
 `get_csdl` returns one cube's model as Power BI sees it — the same CSDL
