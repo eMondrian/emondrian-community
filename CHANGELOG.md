@@ -10,6 +10,18 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.08.2
+
+Server `10.0.85` · modules `0.0.0.99` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.99` (were `0.0.0.98`). The server image, the web tools, the entry page and `docker-compose.yml` are unchanged.
+
+### Licence keys
+
+- **No licence change needs a restart.** Until now a key that had passed once was used until the server restarted, so an expiry or a replaced key waited for a restart. Now, for each module, the server uses the first key in `modules/` that is valid, includes the module and is within its dates. A new key works from the next request; an extension or a key placed beside the current one takes over when the current one expires, without a gap; an expiry takes effect at the expiry time; a deleted key, or one with fewer modules, stops counting within an hour.
+- Old keys can stay in `modules/`: an expired or wrong-module key is skipped.
+- The "No eMondrian licence found" message now ends with "A free 30-day evaluation key is available at https://emondrian.com/license"; it no longer lists the modules the evaluation key includes.
+
 ## 2026.11.08.1
 
 Server `10.0.85` · modules `0.0.0.98` (now with `synthetic`) · web tools `1.2.0` · entry `1.3.2`

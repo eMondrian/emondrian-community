@@ -385,20 +385,26 @@ Most of this edition needs no key. What each part needs:
 | **Power BI** (Connect live, DAX queries, CSDL metadata) | A key including **`DAX`** |
 | **MCP tools** for AI agents | A key including **`MCP`** |
 | The MCP `get_csdl` tool | **Both** `DAX` and `MCP` — it returns the Power BI model through the DAX module |
+| Synthetic catalogs | A key including **`SYNTHETIC`** |
 
-A free 30-day evaluation key covers both `DAX` and `MCP`:
+A free 30-day evaluation key includes `DAX`, `MCP` and `SYNTHETIC`:
 **https://emondrian.com/license**
 
 Where it goes: put the `.lic` file into the **`modules/` folder next to
-`docker-compose.yml`**, the same folder as the module jars. No restart is
-needed — the next request picks it up. You can also install it from the entry
-page at `http://localhost`.
+`docker-compose.yml`**, the same folder as the module jars. You can also
+install it from the entry page at `http://localhost`.
 
-**Keep exactly one valid `.lic` there.** The server uses the first file that
-validates, and with two valid keys in the folder which one that is depends on
-the order the filesystem lists them — so delete the old key rather than leaving
-it beside the new one. An expired or wrong-module key sitting next to a valid
-one is harmless: it is skipped.
+**No licence change needs a restart.** For each module the server uses the
+first key in `modules/` that is valid, includes that module and is within its
+dates:
+
+- A new key on a server without a valid one is used from the next request.
+- An extension or a new key placed beside the current one takes over when the
+  current one expires, without a gap. Old keys can stay in the folder: an
+  expired or wrong-module key is skipped.
+- An expiry takes effect at the expiry time.
+- A deleted key, or one replaced by a key with fewer modules, stops counting
+  within an hour.
 
 Without a key, the licensed paths say what to do rather than failing opaquely —
 for example `No eMondrian licence found. Put your .lic file into the modules/
