@@ -10,6 +10,31 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.08
+
+Server `10.0.85` · modules `0.0.0.98` · web tools `1.2.0` · entry `1.3.2`
+
+Server `10.0.85` (engine `9.3.0-emondrian.85`, was `10.0.84`) and modules `0.0.0.98` (were `0.0.0.97`). The web tools and the entry page are unchanged. `docker-compose.yml` gains an optional `env_file: .env` and two directories, `drivers/` and `share/`, which `setup.sh` creates; run `mkdir -p drivers share` if you upgrade without it.
+
+### Connecting a new database through MCP
+
+- **Credentials in `.env`.** Put a database's user and password or token in `.env` as `EMONDRIAN_SRC_<NAME>_USER`, `_PASSWORD` or `_TOKEN` and restart the server. A connect string names them as `${env:EMONDRIAN_SRC_SALES_PASSWORD}`, and the value is read only when a connection opens. `save_catalog` refuses a connect string with a password or token written into it, and one that names a variable that is not set. MCP answers, errors and `read_logs` included, show `***` instead of these values. New tool `list_source_credentials` lists the variables and whether each is set, never their values.
+- **JDBC drivers at run time.** New tool `install_driver` adds a driver jar from Maven Central coordinates, an https URL on an allowed host (`emondrian.drivers.allowedHosts`, Maven Central by default) or the share. The jar's SHA-256 is required, and for Maven it must also match the repository's own checksum. Installed jars are kept in `drivers/` and loaded without a restart, and again at every start. A driver the image already includes (PostgreSQL, ClickHouse, HSQLDB) is refused with the class name to use. `list_drivers` lists what is installed. `install_driver` is not offered on a read-only server.
+- **The share.** `share/` is mounted read-only at `/share`. Put a file there and a tool can use it as `share:path/to/file`; `list_shared_files` lists them. Paths that leave the share are refused.
+- **The source's structure, not its data.** `describe_source` lists a database's schemas, tables, columns, types and keys; `validate_source_sql` checks a query or an expression without fetching a row; `validate_schema` with `checkSource: true` checks a schema's tables, columns and views against the database. None of them returns rows, row counts, defaults or statistics.
+
+### What an agent sees of a catalog's data
+
+What an agent sees of a catalog's data is a setting. By default an agent reads a catalog's data like any other client. For an agent to see only the schema and synthetic data, set `agentAccess="synthetic-only"` on the `<Catalog>` in `datasources.xml`, or `-Demondrian.mcp.agentAccess=synthetic-only` for every catalog on the server. The server-wide setting is the one to use where a whole server holds real data.
+
+On a synthetic-only catalog the structure tools (`get_schema`, `save_schema`, `validate_schema`, `save_catalog`, `describe_source`, `validate_source_sql`) now work, so an agent can build a cube on a new database. The tools that return values or member names (`execute_query`, `describe_cube`, `get_csdl`, the Power BI report tools, dashboards) refuse and point to `<Catalog> (synthetic)`. `list_catalogs` lists such a catalog with a note. Without synthetic catalogs on the server, the structure tools still work and the data tools still refuse. Excel, Power BI and the web client are not affected.
+
+Limits worth knowing: on a synthetic-only catalog `validate_source_sql` refuses nested queries (subqueries, derived tables, `WITH`) on every database, because a database can evaluate a subquery before the check's row filter and return its values in an error message. On ClickHouse this applies to every catalog. Errors from structure tools on such a catalog keep only quoted text the agent sent itself. `save_catalog` recognises a restricted catalog's database only by the same JDBC address.
+
+### Fixes
+
+- Synthetic catalogs: a cube whose dimensions are classic hierarchies over their own tables (no attribute model) got a two-row fact table with its measures as text, and every query on it failed.
+
 ## 2026.11.07.2
 
 Server `10.0.84` · modules `0.0.0.97` · web tools `1.2.0` · entry `1.3.2`

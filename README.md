@@ -164,12 +164,14 @@ Things to try once connected:
 `get_csdl` needs `DAX` as well — see [Licence keys](#licence-keys) below. MDX
 over XML/A, the browser client and the editors need no key at all.
 
-Ten tools are exposed: `list_catalogs`, `get_schema`, `get_csdl`,
-`execute_query`, `validate_schema`, `get_cube_authoring_guide`,
-`get_properties`, `save_schema`, `save_catalog` and `read_logs`. The last four
+Among the tools: `list_catalogs`, `get_schema`, `get_csdl`, `execute_query`,
+`validate_schema`, `get_cube_authoring_guide`, `get_properties`, `save_schema`,
+`save_catalog`, `read_logs`, and for connecting a new database
+`list_source_credentials`, `describe_source`, `validate_source_sql`,
+`install_driver`, `list_drivers` and `list_shared_files` (see below). Several
 read or **write** server state rather than query data — `save_schema`
-overwrites a catalog's schema XML and `save_catalog` edits the catalog
-registry. On this edition nothing is authenticated, so treat MCP access as
+overwrites a catalog's schema XML, `save_catalog` edits the catalog registry
+and `install_driver` adds a JDBC driver to the server. On this edition nothing is authenticated, so treat MCP access as
 administrative access.
 
 `get_csdl` returns one cube's model as Power BI sees it — the same CSDL
