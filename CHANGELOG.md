@@ -10,6 +10,16 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.09.2
+
+Server `10.0.85` · modules `0.0.0.102` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Modules `0.0.0.102` (were `0.0.0.101`). The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+- `ENABLE_SERVICE_DASHBOARD=false` in `.env` now turns off the MCP dashboard tools as well as the `/dashboard/` page. Before, an agent could still create dashboards through MCP with the page off.
+- `delete_catalog` no longer deletes a catalog when it cannot check whether dashboards read it, for example when the key with `DASHBOARD` has expired or the Dashboard does not answer. It says why; `ignoreDashboards=true` deletes anyway. Before, such a delete went ahead and could leave dashboards reading a catalog that was gone.
+- The MCP dashboard tools no longer describe dashboards as part of eMondrian Enterprise.
+
 ## 2026.11.09.1
 
 Server `10.0.85` · modules `0.0.0.101` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`

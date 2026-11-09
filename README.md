@@ -269,7 +269,7 @@ Dashboards are kept in the `dashboard_data` volume. They need a key including
 MCP tools say where to get it. Like the rest of this edition, the dashboards
 have no users or access control: anyone who reaches the port sees every one. To
 turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
-`docker compose up -d`.
+`docker compose up -d`: the page goes off and the MCP dashboard tools say so.
 
 ---
 
