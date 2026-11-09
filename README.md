@@ -105,6 +105,7 @@ After startup, the following endpoints are available:
 | `http://localhost/client/` | Browser OLAP client — explore the sample cubes without installing anything |
 | `http://localhost/schema-editor/` | Schema editor — create and edit cubes in the browser |
 | `http://localhost/catalog-editor/` | Catalog editor — data sources and catalogs the server publishes |
+| `http://localhost/dashboard/` | Dashboards an AI agent builds through MCP — see below |
 | `http://localhost/logs/` | Server logs |
 | `http://localhost/emondrian/mcp` | **MCP endpoint** for AI agents, streamable HTTP — see below |
 | `http://localhost/emondrian/mcp/sse` | The same MCP server over the older HTTP+SSE transport |
@@ -247,6 +248,28 @@ Examples:
 
 The Enterprise edition ships this already wired to Loki, with a Grafana
 dashboard.
+
+---
+
+## Dashboards
+
+The `dashboard` service serves dashboards at `http://localhost/dashboard/`:
+filters shared by their widgets, pivots you can expand, and bar, line and pie
+charts over your cubes. An agent connected to the MCP server builds them. Ask it,
+for example, *"Build a dashboard of US flight punctuality from the OnTime cube:
+flights and late arrivals by origin state, the on-time rate by month, and an
+airline filter."* It reads `get_dashboard_authoring_guide`, checks its MDX and
+calls `create_dashboard`, which runs every query once before saving and returns
+the link. `update_dashboard`, `list_dashboards`, `get_dashboard` and
+`delete_dashboard` do the rest; a changed dashboard keeps its earlier versions
+under **History**.
+
+Dashboards are kept in the `dashboard_data` volume. They need a key including
+`DASHBOARD` (see [Licence keys](#licence-keys)); without one the page and the
+MCP tools say where to get it. Like the rest of this edition, the dashboards
+have no users or access control: anyone who reaches the port sees every one. To
+turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
+`docker compose up -d`.
 
 ---
 
@@ -393,6 +416,7 @@ Most of this edition needs no key. What each part needs:
 | **MCP tools** for AI agents | A key including **`MCP`** |
 | The MCP `get_csdl` tool | **Both** `DAX` and `MCP` — it returns the Power BI model through the DAX module |
 | Synthetic catalogs | A key including **`SYNTHETIC`** |
+| **Dashboards** at `/dashboard/` | A key including **`DASHBOARD`** |
 
 A free 30-day evaluation key includes `DAX`, `MCP` and `SYNTHETIC`:
 **https://emondrian.com/license**

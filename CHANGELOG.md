@@ -10,6 +10,24 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.09.1
+
+Server `10.0.85` · modules `0.0.0.101` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+OLAP Client `1.2.3` (was `1.2.0`) and the Dashboard application, new in Community. The server, the modules, the Schema Editor and Catalog Editor (`1.1.0`) and the entry page are unchanged.
+
+### Dashboards
+
+- The `dashboard` service serves dashboards at `/dashboard/`, built by an AI agent through the MCP dashboard tools. Until now those tools answered that dashboards were part of eMondrian Enterprise.
+- It needs a licence key including `DASHBOARD` in `modules/`. Dashboards are kept in the `dashboard_data` volume.
+- `ENABLE_SERVICE_DASHBOARD=false` in `.env` turns the route off. Like the rest of Community, the dashboards have no users or access control.
+
+### OLAP Client
+
+- **Pivot tables with two or more hierarchies on rows.** Every row hierarchy after the first was drawn inside the data cells, shifted by the width of the ones before it, and row headers did not stay in place when scrolling sideways.
+- **Members with an empty name** (a `NULL` or empty key) read "(blank)" instead of their unique name, such as `[Origin Airport.Origin State].[]`, in the table and in the copied or downloaded one.
+- **Long row groups.** Scrolled into a group, the top visible row repeats the group's member, so it never scrolls out of sight.
+
 ## 2026.11.09
 
 Server `10.0.85` · modules `0.0.0.101` · web tools `1.2.0` · entry `1.3.2`
