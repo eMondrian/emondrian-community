@@ -10,6 +10,29 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.09
+
+Server `10.0.85` · modules `0.0.0.101` · web tools `1.2.0` · entry `1.3.2`
+
+Modules `0.0.0.101` (were `0.0.0.100`) and `schema/Foodmart.xml`. The server image, the web tools, the entry page and `docker-compose.yml` are unchanged.
+
+### Schemas: the classic form is obsolete
+
+- New schemas use the attribute model (`<DimensionAttribute>`). A classic dimension, one with no `<DimensionAttribute>`, still loads and answers MDX, but `validate_schema`, `save_schema` and `save_catalog` name it in a warning. `get_cube_authoring_guide` says the same.
+- DAX and Power BI need the attribute model. A DAX query naming a classic dimension's column now says so, instead of "Hierarchy … have not found".
+- `schema/Foodmart.xml` no longer has `Store_my`, an unused classic dimension over a table the database does not have.
+
+### Connecting a new database with an agent
+
+- `save_catalog` without `xml`, for a catalog with no schema file yet, writes an empty schema and registers the catalog, so `describe_source` and `validate_source_sql` work before the cube is written. It used to refuse.
+- Right after `save_catalog` or `save_schema`, `get_schema`, `validate_schema`, `add_time_measures` and `list_catalogs` see the new schema. For a few seconds they used to answer "Schema resource not found", or read the previous version.
+- `validate_schema` with `checkSource`:
+  - looks tables up in the catalog's own database by their exact name. On MySQL and MariaDB it searched every database on the server and also tried other letter cases, so a table could pass because another database had one of that name;
+  - a name in the wrong case is an error that gives the database's spelling;
+  - checks the columns of attribute-model dimensions against the dimension's own table.
+- On MySQL and MariaDB, `describe_source`'s `schema` is the database name; it used to list every database's tables.
+- An error that quotes a table with its database name (MariaDB: `Table 'db.table' doesn't exist`) keeps the name instead of showing `'?'`.
+
 ## 2026.11.08.3
 
 Server `10.0.85` · modules `0.0.0.100` · web tools `1.2.0` · entry `1.3.2`

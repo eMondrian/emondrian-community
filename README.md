@@ -277,6 +277,11 @@ Open the schema editor at `http://localhost/schema-editor/` to build a schema in
 the browser, or edit the XML directly — the shipped schemas are in `schema/`, and
 `schema/Foodmart.xml` includes an example role showing how access to a cube can be restricted.
 
+Write new schemas in the **attribute model** (`<DimensionAttribute>`), as the
+shipped ones are; `get_cube_authoring_guide` over MCP describes it. The classic
+form, a dimension with no `<DimensionAttribute>`, is obsolete: it still loads
+and answers MDX, but DAX and Power BI need the attribute model.
+
 To point eMondrian at your own database, add a `<Catalog>` to `datasources.xml`
 with a JDBC connect string and the path to your schema file. Inside a `<Catalog>`,
 write `<DataSourceInfo>` **before** `<Definition>` — the parser reads those two
