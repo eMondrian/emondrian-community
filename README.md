@@ -166,7 +166,7 @@ Things to try once connected:
 over XML/A, the browser client and the editors need no key at all.
 
 Among the tools: `list_catalogs`, `get_schema`, `get_csdl`, `execute_query`,
-`validate_schema`, `get_cube_authoring_guide`, `get_properties`, `save_schema`,
+`validate_schema`, `get_cube_authoring_guide`, `get_ossie_guide`, `validate_ossie`, `get_properties`, `save_schema`,
 `save_catalog`, `delete_catalog`, `delete_schema`, `read_logs`, and for connecting a new database
 `list_source_credentials`, `describe_source`, `validate_source_sql`,
 `install_driver`, `list_drivers` and `list_shared_files` (see below). Several
@@ -181,6 +181,23 @@ administrative access.
 document Power BI Desktop receives on a live connection, so an agent can write
 Power BI report files that name fields the way the model does. It needs a
 licence granting `DAX` as well as `MCP`.
+
+### Apache Ossie semantic models
+
+An agent can write a catalog's cube as an [Apache Ossie](https://github.com/apache/ossie)
+semantic model (YAML or JSON: datasets, fields, relationships, metrics as SQL
+aggregates), or build a cube from one. The agent translates; the server checks.
+`get_ossie_guide` has the rules both ways, and `validate_ossie` checks a document
+for a catalog: against the spec's JSON Schema (draft `0.3.0.dev0`), its names
+against each other, every dataset, field and metric against the database, and
+each metric's total against the matching measure's total from the cube. A
+document can be passed as text or as `share:<file>`. Totals are compared only
+on catalogs agents may read (not on `agentAccess="synthetic-only"` ones), and
+only over the tables and views the cube is built on.
+
+An Ossie model has no hierarchies, roles or row restrictions: a document exported
+from a catalog does not carry its access rules. Converters available today still
+write spec `0.2`; the guide says how to bring such a document to `0.3.0.dev0`.
 
 ### MCP traffic log
 

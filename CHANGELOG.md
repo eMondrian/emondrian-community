@@ -10,6 +10,25 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.10.1
+
+Server `10.0.85` · modules `0.0.0.104` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Modules `0.0.0.104` (were `0.0.0.103`). The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+### Apache Ossie semantic models
+
+- **Two new MCP tools.** An agent writes a catalog's cube as an Apache Ossie model, or builds a cube from one; the server checks the result.
+  - `get_ossie_guide` gives the rules for both directions.
+  - `validate_ossie` checks a document for a catalog:
+    - against the spec's JSON Schema (`0.3.0.dev0`, a draft);
+    - its names against each other;
+    - its datasets, fields and metrics against the database, without reading a row;
+    - each metric's total against the matching measure's total from the cube.
+- **Where totals are compared.** Only on catalogs agents may read, and only over the tables and views the cube is built on.
+- **What a model leaves out.** An Ossie model carries no hierarchies, roles or row restrictions, so an exported document has no access rules.
+- **Spec 0.2 documents.** Today's converters write spec `0.2`; the guide explains how to bring such a document to `0.3.0.dev0`.
+
 ## 2026.11.10
 
 Server `10.0.85` · modules `0.0.0.103` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
