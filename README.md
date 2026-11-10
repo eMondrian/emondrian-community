@@ -380,7 +380,10 @@ Then the structure tools (`get_schema`, `save_schema`, `validate_schema`,
 `save_catalog`, `describe_source`, `validate_source_sql`) work on the real
 catalog, and the tools that return values or member names refuse and point to
 `<Catalog> (synthetic)`. `list_catalogs` marks such a catalog. Without the
-synthetic module or its licence, the data tools still refuse.
+synthetic module or its licence, the data tools still refuse. `delete_catalog`
+refuses such a catalog, so an agent cannot delete it and register it again
+without the rule: a person removes it from `datasources.xml`. Its
+`<Catalog> (synthetic)` can still be deleted on its own.
 `agentAccess="none"` hides a catalog from agents completely.
 
 **Turning it off.** Remove the attribute (or set `agentAccess="real"`), or remove

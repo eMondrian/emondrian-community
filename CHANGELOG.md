@@ -10,6 +10,14 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.10
+
+Server `10.0.85` · modules `0.0.0.103` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Modules `0.0.0.103` (were `0.0.0.102`). The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+- **`delete_catalog` no longer deletes a catalog with `agentAccess="synthetic-only"`.** The rule is part of the catalog's entry in `datasources.xml`. An agent could delete the catalog and register it again with `save_catalog` under the same name, connect string and schema, and the new entry no longer kept agents from its real data. Such a catalog is now removed by a person. Its `<Catalog> (synthetic)` can still be deleted on its own. A catalog with `agentAccess="none"` was already invisible to agents, and the server-wide setting was never affected.
+
 ## 2026.11.09.2
 
 Server `10.0.85` · modules `0.0.0.102` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
