@@ -265,10 +265,10 @@ the link. `update_dashboard`, `list_dashboards`, `get_dashboard` and
 under **History**.
 
 Dashboards are kept in the `dashboard_data` volume. They need a key including
-`DASHBOARD` (see [Licence keys](#licence-keys)); without one the page and the
-MCP tools say where to get it. Like the rest of this edition, the dashboards
-have no users or access control: anyone who reaches the port sees every one. To
-turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
+`DASHBOARD` (see [Licence keys](#licence-keys)), which the free evaluation key
+includes; without one the page and the MCP tools say where to get it. Like the
+rest of this edition, the dashboards have no users or access control: anyone
+who reaches the port sees every one. To turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
 `docker compose up -d`: the page goes off and the MCP dashboard tools say so.
 
 ---
@@ -418,8 +418,12 @@ Most of this edition needs no key. What each part needs:
 | Synthetic catalogs | A key including **`SYNTHETIC`** |
 | **Dashboards** at `/dashboard/` | A key including **`DASHBOARD`** |
 
-A free 30-day evaluation key includes `DAX`, `MCP` and `SYNTHETIC`:
+A free 30-day evaluation key includes `DAX`, `MCP`, `SYNTHETIC` and `DASHBOARD`:
 **https://emondrian.com/license**
+
+Keys issued before 9 November 2026 don't include `DASHBOARD` (before
+8 November, only `DAX` and `MCP`): request a new one and put it beside the
+old one, no restart needed.
 
 Where it goes: put the `.lic` file into the **`modules/` folder next to
 `docker-compose.yml`**, the same folder as the module jars. You can also
