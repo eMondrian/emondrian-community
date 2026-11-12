@@ -1,0 +1,71 @@
+# Test identity sources for developing and testing the authentication (NEVER in production):
+# a Samba Active Directory, an OpenLDAP, a "partner" Keycloak as external OIDC/SAML provider and
+# a test SSO proxy, all with fixed test data. Used through auth/testenv/testenv.sh, which adds
+# this file to docker-compose.yml + docker-compose.auth.yml (profile "testenv").
+
+services:
+
+  testenv-ad:
+    profiles: ["testenv"]
+    build: ./auth/testenv/ad
+    image: emondrian-testenv-ad:local
+    container_name: emondrian_testenv_ad
+    hostname: dc
+    domainname: emtest.local
+    # Samba writes Windows ACLs (security.* extended attributes) when it creates the domain
+    cap_add: [SYS_ADMIN]
+    environment:
+      EMONDRIAN_HOST: ${TESTENV_EMONDRIAN_HOST:?run auth/testenv/testenv.sh}
+      STATE_UID: ${TESTENV_UID:-1000}
+    volumes:
+      - ./auth/testenv/.state:/state
+    networks:
+      app_network:
+        aliases: [dc.emtest.local]
+
+  testenv-openldap:
+    profiles: ["testenv"]
+    image: osixia/openldap:1.5.0
+    container_name: emondrian_testenv_openldap
+    environment:
+      LDAP_ORGANISATION: eMondrian test
+      LDAP_DOMAIN: emtest.local
+      LDAP_ADMIN_PASSWORD: Ldap-Admin-Test-1
+      LDAP_TLS: "false"
+    networks:
+      app_network:
+        aliases: [openldap.emtest.local]
+
+  testenv-idp:
+    profiles: ["testenv"]
+    image: quay.io/keycloak/keycloak:26.7.5
+    container_name: emondrian_testenv_idp
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: Idp-Admin-Test-1
+      # Browsers and eMondrian's containers reach it at the same address (the host's)
+      KC_HOSTNAME: http://${TESTENV_HOST:?run auth/testenv/testenv.sh}:${TESTENV_IDP_PORT:-8095}
+      PUBLIC_URL: ${PUBLIC_URL}
+    ports:
+      - "${TESTENV_IDP_PORT:-8095}:8080"
+    volumes:
+      - ./auth/testenv/idp/realm-partner.json:/opt/keycloak/data/import/realm-partner.json:ro
+    networks:
+      - app_network
+
+  testenv-proxy:
+    profiles: ["testenv"]
+    build: ./auth/testenv/proxy
+    image: emondrian-testenv-proxy:local
+    container_name: emondrian_testenv_proxy
+    environment:
+      PUBLIC_HOST: ${TESTENV_PUBLIC_HOST:?run auth/testenv/testenv.sh}
+    ports:
+      - "${TESTENV_PROXY_PORT:-9180}:8080"
+      - "${TESTENV_PROXY_JWT_PORT:-9181}:8081"
+    volumes:
+      - ./auth/testenv/.state/secrets:/secrets:ro
+    networks:
+      app_network:
+        aliases: [proxy.emtest.local]

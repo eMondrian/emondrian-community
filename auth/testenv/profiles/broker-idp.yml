@@ -1,0 +1,31 @@
+# Keycloak as broker: Active Directory plus an external provider over OIDC and over SAML
+sources:
+  - name: testenv-ad
+    type: ldap
+    preset: active-directory
+    url: ldaps://dc.emtest.local:636
+    bind_dn: CN=svc_ldap,OU=Service,OU=eMondrian,DC=emtest,DC=local
+    bind_password_file: ad-bind-password
+    users_dn: OU=eMondrian,DC=emtest,DC=local
+    groups_dn: OU=Groups,OU=eMondrian,DC=emtest,DC=local
+    allowed_groups: [BI-Users, BI-Admins, BI-Modelers]
+  - name: partner-oidc
+    type: oidc
+    preset: keycloak
+    display_name: Partner (OIDC)
+    issuer: http://{TESTENV_HOST}:{TESTENV_IDP_PORT}/realms/partner
+    client_id: emondrian-broker
+    client_secret_file: partner-oidc-secret
+  - name: partner-saml
+    type: saml
+    preset: generic
+    display_name: Partner (SAML)
+    metadata_url: http://{TESTENV_HOST}:{TESTENV_IDP_PORT}/realms/partner/protocol/saml/descriptor
+    username_attribute: username
+    groups_attribute: groups
+    username_template: ${ATTRIBUTE.username}@saml
+roles:
+  mapping:
+    emondrian-admins:  [BI-Admins]
+    emondrian-editors: [BI-Modelers]
+    emondrian-viewers: [BI-Users, BI-Admins, BI-Modelers, partner-analysts]

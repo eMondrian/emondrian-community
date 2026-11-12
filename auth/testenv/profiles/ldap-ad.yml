@@ -1,0 +1,16 @@
+# Active Directory over LDAPS (preset active-directory): nested groups, a disabled account
+sources:
+  - name: testenv-ad
+    type: ldap
+    preset: active-directory
+    url: ldaps://dc.emtest.local:636
+    bind_dn: CN=svc_ldap,OU=Service,OU=eMondrian,DC=emtest,DC=local
+    bind_password_file: ad-bind-password
+    users_dn: OU=eMondrian,DC=emtest,DC=local
+    groups_dn: OU=Groups,OU=eMondrian,DC=emtest,DC=local
+    allowed_groups: [BI-Users, BI-Admins, BI-Modelers]
+roles:
+  mapping:
+    emondrian-admins:  [BI-Admins]
+    emondrian-editors: [BI-Modelers]
+    emondrian-viewers: [BI-Users, BI-Admins, BI-Modelers]

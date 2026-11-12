@@ -425,6 +425,8 @@ Write-Header "Checking project files"
 $RequiredFiles = @(
     ".env.example",
     "docker-compose.yml",
+    "docker-compose.auth.yml",
+    "auth\scripts\authentication.ps1",
     "datasources.xml",
     "schema\Foodmart.xml",
     "schema\OnTime.xml",
@@ -561,6 +563,96 @@ else {
 Write-Host "Web front door port: $PortNumber"
 
 # ============================================================
+# Authentication
+# ============================================================
+
+# The authentication gateway and Keycloak run from the start, with authentication OFF
+# (open_access in auth/identity.yml): everybody gets in without logging in. Switching it on
+# later needs no restart: .\auth\scripts\authentication.ps1 on. What auth/scripts/init.sh
+# --open --no-start does on Linux; values already in .env and an existing identity.yml are kept.
+
+Write-Header "Preparing authentication"
+
+function New-RandomHex([int]$Count) {
+    $Bytes = New-Object byte[] $Count
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($Bytes)
+    return -join ($Bytes | ForEach-Object { $_.ToString("x2") })
+}
+
+function Set-EnvDefault([string]$Key, [string]$Value) {
+    $Lines = @(Get-Content -Path $EnvFile)
+    if ($Lines | Where-Object { $_ -match "^$Key=\S" }) {
+        Write-Host ".env: $Key kept"
+        return
+    }
+    $Lines = @($Lines | Where-Object { $_ -notmatch "^$Key=" }) + "$Key=$Value"
+    Set-Content -Path $EnvFile -Value $Lines
+    Write-Host ".env: $Key set"
+}
+
+if (-not (Select-String -Path $EnvFile -Pattern '^# --- Authentication' -Quiet)) {
+    Add-Content -Path $EnvFile -Value @("", "# --- Authentication (windows-setup.ps1) ---")
+}
+Set-EnvDefault "PUBLIC_URL" $WebBase
+# HTTPS is off without a certificate; its port is published on a random free one (0)
+Set-EnvDefault "EMONDRIAN_TLS_PORT" "0"
+Set-EnvDefault "COMPOSE_PROFILES" "keycloak"
+# A plain "docker compose ..." in this directory then includes the authentication overlay
+Set-EnvDefault "COMPOSE_PATH_SEPARATOR" ":"
+Set-EnvDefault "COMPOSE_FILE" "docker-compose.yml:docker-compose.auth.yml"
+foreach ($Key in @("OIDC_CLIENT_SECRET", "SESSION_SECRET", "KEYCLOAK_DB_PASSWORD")) {
+    Set-EnvDefault $Key (New-RandomHex 32)
+}
+Set-EnvDefault "KEYCLOAK_ADMIN_PASSWORD" (New-RandomHex 16)
+# Keycloak's admin console: this machine and private networks (Docker Desktop forwards from them)
+Set-EnvDefault "KEYCLOAK_ADMIN_ALLOW" "127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+
+foreach ($Dir in @("logs", "auth/secrets/tls", "auth/secrets/truststore", "auth/secrets/kerberos")) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir $Dir) | Out-Null
+}
+
+$IdentityFile = Join-Path $ScriptDir "auth/identity.yml"
+if (Test-Path $IdentityFile) {
+    Write-Host "auth/identity.yml: already exists, kept"
+}
+else {
+    # The administrator's first password goes to a file in the secrets directory; it must be
+    # changed at the first login. Same content as auth/scripts/init.sh --open writes.
+    [System.IO.File]::WriteAllText((Join-Path $ScriptDir "auth/secrets/initial-admin-password"), "0")
+    $Identity = @"
+# Quick start (windows-setup.ps1): users kept in Keycloak itself. Add users in Keycloak's admin
+# console ($WebBase/auth/admin/, realm "emondrian", user "admin" with KEYCLOAK_ADMIN_PASSWORD
+# from .env) and put them into the groups below. For your Active Directory, see
+# auth/identity.example.yml.
+sources:
+  - name: local
+    type: local
+    groups: [emondrian-admins, emondrian-editors, emondrian-viewers]
+    users:
+      - username: admin
+        groups: [emondrian-admins]
+        initial_password_file: initial-admin-password   # temporary: changed at the first login
+
+roles:
+  mapping:
+    emondrian-admins:  [emondrian-admins]
+    emondrian-editors: [emondrian-editors, emondrian-admins]
+    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins]
+
+# Authentication off: everybody who reaches the server gets in without logging in, as the user
+# below with the roles below. Switch with auth/scripts/authentication.ps1 on|off (no restart).
+open_access:
+  enabled: true
+  user: guest
+  roles: [emondrian-admins]
+"@
+    [System.IO.File]::WriteAllText($IdentityFile, (($Identity -replace "`r`n", "`n") + "`n"))
+    Write-Host "auth/identity.yml: written (local administrator admin, authentication OFF)"
+}
+
+$AuthState = (& (Join-Path $ScriptDir "auth/scripts/authentication.ps1") status | Out-String).Trim()
+
+# ============================================================
 # WSL
 # ============================================================
 
@@ -622,7 +714,7 @@ if ($PortInUse) {
     $OwnBinding = ""
 
     try {
-        $OwnBinding = (& docker compose port emondrian_entry 80 | Out-String).Trim()
+        $OwnBinding = (& docker compose port auth_gateway 80 | Out-String).Trim()
     }
     catch {
         $OwnBinding = ""
@@ -641,7 +733,8 @@ Then run this script again.
     }
 }
 
-& docker compose up -d
+# The first run builds the authentication images (a few minutes); later runs reuse them
+& docker compose up -d --build
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -658,6 +751,10 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Host "eMondrian logs:"
     & docker compose logs --tail=50 eMondrian
+
+    Write-Host ""
+    Write-Host "Authentication logs:"
+    & docker compose logs --tail=30 keycloak auth-config auth_gateway
 
     Fail "Failed to start eMondrian Community."
 }
@@ -875,6 +972,18 @@ Write-Host ""
 
 Write-Host "OnTime rows:"
 Write-Host "  $($OnTimeRowCount.ToString('N0'))"
+Write-Host ""
+
+if ($AuthState -eq "off") {
+    Write-Host "Authentication: OFF - everybody who reaches this server gets in without"
+    Write-Host "logging in, with all rights. Excel: Windows authentication, no password."
+    Write-Host "  Switch it on (no restart):  .\auth\scripts\authentication.ps1 on"
+    Write-Host "  Then log in as admin, first password 0 (you choose a new one at once)."
+}
+else {
+    Write-Host "Authentication: ON - log in with your user name and password."
+    Write-Host "  Switch it off (no restart): .\auth\scripts\authentication.ps1 off"
+}
 Write-Host ""
 
 Write-Host "Containers:"

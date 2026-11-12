@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<web-app
+  xmlns="https://jakarta.ee/xml/ns/jakartaee"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+                      https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+  version="6.0"
+  metadata-complete="true"
+>
+
+  <display-name>emondrian</display-name>
+  <description>
+     Mondrian XML/A servlet, sample schemas and datasets, and client libraries and tools.
+  </description>
+
+  <filter>
+    <filter-name>CorsFilter</filter-name>
+    <filter-class>org.apache.catalina.filters.CorsFilter</filter-class>
+    <init-param>
+      <param-name>cors.allowed.origins</param-name>
+      <param-value>*</param-value>
+    </init-param>
+    <init-param>
+      <param-name>cors.allowed.methods</param-name>
+      <param-value>GET,POST,HEAD,OPTIONS,PUT</param-value>
+    </init-param>
+    <init-param>
+      <param-name>cors.exposed.headers</param-name>
+      <param-value>Access-Control-Allow-Origin,Access-Control-Allow-Methods</param-value>
+    </init-param>
+    <!-- Required for async servlets mapped under /* (e.g. mcp's SSE endpoints,
+         registered by MondrianModuleServletRegistrar). Without this, any filter
+         in the chain lacking async-supported blocks request.startAsync() with
+         "A filter or servlet of the current chain does not support
+         asynchronous operations", regardless of the servlet's own setting. -->
+    <async-supported>true</async-supported>
+  </filter>
+  <filter-mapping>
+    <filter-name>CorsFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+  </filter-mapping>
+
+  <listener>
+    <listener-class>mondrian.metrics.MetricsInitializer</listener-class>
+  </listener>
+
+  <listener>
+    <listener-class>mondrian.xmla.MondrianModuleServletRegistrar</listener-class>
+  </listener>
+
+  <servlet>
+    <servlet-name>metrics</servlet-name>
+    <servlet-class>io.prometheus.client.servlet.jakarta.exporter.MetricsServlet</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>metrics</servlet-name>
+    <url-pattern>/metrics</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>MondrianXmlaServlet</servlet-name>
+    <description>
+      MondrianXmlaServlet.
+      Provides a XML/A (XML for Analysis) interface to the Mondrian (R)OLAP engine.
+    </description>
+
+    <!--
+
+      These are other classes that implement a XML/A provider servelt on top of Mondrian.
+
+      <servlet-class>mondrian.xmla.impl.Olap4jXmlaServlet</servlet-class>
+      <servlet-class>mondrian.xmla.impl.DynamicDataSourceXmlaServlet</servlet-class>
+
+    -->
+    <servlet-class>mondrian.xmla.impl.MondrianXmlaServlet</servlet-class>
+
+    <init-param>
+      <param-name>CharacterEncoding</param-name>
+      <param-value>UTF-8</param-value>
+    </init-param>
+
+    <!--
+    
+    This parameter is commented out intentionally; 
+    this way, mondrian will assume the default location for the data source configuration
+    The default location is WEB-INF/datasources.xml
+    
+    <init-param>
+      <param-name>DataSourcesConfig</param-name>
+      <param-value>path/to/your/datasources.xml</param-value>
+    </init-param>
+    
+    -->
+    
+    <!--
+      
+
+    <init-param>
+      <param-name>requireAuthenticatedSessions</param-name>
+      <param-value>false</param-value>
+    </init-param>
+
+    -->
+
+    <!--
+      Establishes the caller's identity for role matching: the authenticated
+      user name and their groups are put on the request, and mondrian.server.
+      ServerPermissions matches them against the schema's <Role>/<RoleMember>
+      elements. Without a callback every request is anonymous and resolves to
+      the schema's defaultRole.
+
+      Several callbacks may be listed, separated with ";".
+
+      CatalinaAuthenticationXmlaRequestCallback reads the container's own
+      authenticated principal, so it is inert until a realm and a
+      <security-constraint> are configured, which is why it is safe to enable
+      by default.
+
+      ForwardedAuthenticationXmlaRequestCallback instead trusts the
+      X-Forwarded-User / X-Forwarded-Groups headers. Only enable it behind a
+      reverse proxy that *overwrites* those headers; if any client can set them,
+      it can name itself any user it likes.
+    -->
+    <!--
+      Authentication overlay (docker-compose.auth.yml): the auth gateway authenticates every
+      request and overwrites X-Forwarded-User / X-Forwarded-Groups, and this container is
+      reachable only from the compose network, so the forwarded headers are trusted here.
+      This file is a copy of the image's web.xml with only this value changed; re-copy it
+      when the eMondrian image is upgraded.
+    -->
+    <init-param>
+      <param-name>Callbacks</param-name>
+      <param-value>emondrian.ForwardedAuthenticationXmlaRequestCallback</param-value>
+    </init-param>
+
+  </servlet>
+
+  <servlet>
+    <servlet-name>LogResurce</servlet-name>
+    <servlet-class>mondrian.util.LogResource</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>MondrianXmlaServlet</servlet-name>
+    <url-pattern>/xmla</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>LogResurce</servlet-name>
+    <url-pattern>/logs/*</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>HealthCheckServlet</servlet-name>
+    <servlet-class>mondrian.util.HealthCheckServlet</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>HealthCheckServlet</servlet-name>
+    <url-pattern>/health</url-pattern>
+  </servlet-mapping>
+
+</web-app>

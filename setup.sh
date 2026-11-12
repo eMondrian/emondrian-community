@@ -47,7 +47,7 @@ install_host_tools() {
 
     local missing=0
 
-    for command_name in curl unzip; do
+    for command_name in curl unzip openssl; do
         if ! command -v "$command_name" >/dev/null 2>&1; then
             echo "$command_name: not found"
             missing=1
@@ -69,43 +69,49 @@ install_host_tools() {
         run_as_root apt-get install -y \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     elif command -v dnf >/dev/null 2>&1; then
         run_as_root dnf install -y \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     elif command -v yum >/dev/null 2>&1; then
         run_as_root yum install -y \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     elif command -v zypper >/dev/null 2>&1; then
         run_as_root zypper --non-interactive install \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     elif command -v pacman >/dev/null 2>&1; then
         run_as_root pacman -Sy --noconfirm \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     elif command -v apk >/dev/null 2>&1; then
         run_as_root apk add \
             curl \
             unzip \
+            openssl \
             ca-certificates
 
     else
-        fail "Could not detect a supported package manager. Install curl, unzip and ca-certificates manually."
+        fail "Could not detect a supported package manager. Install curl, unzip, openssl and ca-certificates manually."
     fi
 
-    for command_name in curl unzip; do
+    for command_name in curl unzip openssl; do
         if ! command -v "$command_name" >/dev/null 2>&1; then
             fail "$command_name is still unavailable after installation."
         fi
@@ -266,6 +272,8 @@ header "Checking project files"
 REQUIRED_FILES=(
     ".env.example"
     "docker-compose.yml"
+    "docker-compose.auth.yml"
+    "auth/scripts/init.sh"
     "datasources.xml"
     "schema/Foodmart.xml"
     "schema/OnTime.xml"
@@ -367,6 +375,22 @@ fi
 echo "Web front door port: $EMONDRIAN_PORT"
 
 # ============================================================
+# Authentication
+# ============================================================
+
+header "Preparing authentication"
+
+# The authentication gateway and Keycloak run from the start, with authentication OFF
+# (open_access in auth/identity.yml): everybody gets in without logging in. Switching it on
+# later needs no restart: ./auth/scripts/authentication.sh on. Settings already in .env and an
+# existing auth/identity.yml are kept, so a re-run changes nothing there.
+if ! ./auth/scripts/init.sh --url "$WEB_BASE" --open --no-start; then
+    fail "Could not prepare the authentication settings (.env, auth/identity.yml)."
+fi
+
+AUTH_STATE="$(./auth/scripts/authentication.sh status)"
+
+# ============================================================
 # Make scripts executable
 # ============================================================
 
@@ -418,7 +442,7 @@ if (echo >"/dev/tcp/127.0.0.1/$EMONDRIAN_PORT") 2>/dev/null; then
     # actual published binding, not merely whether the container is up: with a
     # changed EMONDRIAN_PORT it is up on the *old* port and the new one may
     # still belong to something else.
-    OWN_BINDING="$("${DOCKER[@]}" compose port emondrian_entry 80 2>/dev/null || true)"
+    OWN_BINDING="$("${DOCKER[@]}" compose port auth_gateway 80 2>/dev/null || true)"
 
     case "$OWN_BINDING" in
         *:"$EMONDRIAN_PORT")
@@ -440,7 +464,8 @@ fi
 mkdir -p logs drivers share
 
 
-if ! "${DOCKER[@]}" compose up -d; then
+# The first run builds the authentication images (a few minutes); later runs reuse them
+if ! "${DOCKER[@]}" compose up -d --build; then
     echo
     echo "Docker Compose failed."
 
@@ -455,6 +480,10 @@ if ! "${DOCKER[@]}" compose up -d; then
     echo
     echo "eMondrian logs:"
     "${DOCKER[@]}" compose logs --tail=50 eMondrian || true
+
+    echo
+    echo "Authentication logs:"
+    "${DOCKER[@]}" compose logs --tail=30 keycloak auth-config auth_gateway || true
 
     fail "Failed to start eMondrian Community."
 fi
@@ -648,6 +677,17 @@ echo
 
 echo "OnTime rows:"
 echo "  $ONTIME_ROWS"
+echo
+
+if [ "$AUTH_STATE" = off ]; then
+    echo "Authentication: OFF - everybody who reaches this server gets in without"
+    echo "logging in, with all rights. Excel: Windows authentication, no password."
+    echo "  Switch it on (no restart):  ./auth/scripts/authentication.sh on"
+    echo "  Then log in as admin, first password 0 (you choose a new one at once)."
+else
+    echo "Authentication: ON - log in with your user name and password."
+    echo "  Switch it off (no restart): ./auth/scripts/authentication.sh off"
+fi
 echo
 
 echo "Containers:"

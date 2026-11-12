@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eMondrian access tokens</title>
+<style>
+  :root { --fg: #1d2330; --muted: #5d6677; --line: #d9dde5; --bg: #ffffff; --panel: #f5f7fa;
+          --accent: #2457c5; --danger: #b42318; --ok: #1b7a3e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6e9ef; --muted: #9aa3b5; --line: #343b49; --bg: #161a22; --panel: #1f2430;
+            --accent: #7aa2ff; --danger: #ff7b72; --ok: #56d364; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 24px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 4px; }
+  input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  input[name=name] { width: 260px; max-width: 100%; }
+  input[name=days] { width: 90px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.link { background: none; border: none; color: var(--danger); padding: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+  code { font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .new { border-color: var(--ok); }
+  .token { display: block; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; word-break: break-all; margin: 8px 0; }
+  .error { color: var(--danger); }
+  .muted { color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Access tokens</h1>
+  <p class="lead">For Excel, Power BI, scripts and AI agents that cannot use the browser login.
+    Signed in as <strong id="user">…</strong> · <a href="/">eMondrian</a> · <a href="/logout">Log out</a></p>
+
+  <section>
+    <h2>New token</h2>
+    <form id="create">
+      <label>Name <input name="name" required maxlength="80" placeholder="e.g. Excel on my laptop"></label>
+      <label>Valid for (days) <input name="days" type="number" min="1" required></label>
+      <button type="submit">Create</button>
+    </form>
+    <p id="create-error" class="error" hidden></p>
+  </section>
+
+  <section id="created" class="new" hidden>
+    <h2>Copy your token now — it is not shown again</h2>
+    <code class="token" id="token"></code>
+    <button type="button" id="copy">Copy</button>
+    <p class="muted">Excel / Power BI (XML/A server <code id="xmla"></code>): user name <code id="as-user"></code>, password: the token.<br>
+      Scripts and agents: header <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+  </section>
+
+  <section>
+    <h2 id="list-title">Your tokens</h2>
+    <label id="all-toggle" hidden><span><input type="checkbox" id="all"> show all users' tokens</span></label>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="owner-col" hidden>User</th><th>Name</th><th>Token</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="empty" class="muted" hidden>No tokens.</p>
+    <p id="list-error" class="error" hidden></p>
+  </section>
+</main>
+<script>
+  const api = "/account/api/tokens";
+  const $ = (id) => document.getElementById(id);
+  const day = (iso) => iso ? iso.slice(0, 16).replace("T", " ") + " UTC" : "—";
+
+  async function call(method, path, body) {
+    const res = await fetch(path, {
+      method, credentials: "same-origin",
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  function cell(text) {
+    const td = document.createElement("td");
+    td.textContent = text;
+    return td;
+  }
+
+  async function load() {
+    $("list-error").hidden = true;
+    let data;
+    try {
+      data = await call("GET", api + ($("all").checked ? "?all=1" : ""));
+    } catch (e) {
+      $("list-error").textContent = e.message;
+      $("list-error").hidden = false;
+      return;
+    }
+    $("user").textContent = data.user;
+    $("as-user").textContent = data.user;
+    $("all-toggle").hidden = !data.admin;
+    $("owner-col").hidden = !data.all;
+    $("list-title").textContent = data.all ? "All users' tokens" : "Your tokens";
+    const days = document.querySelector("input[name=days]");
+    days.max = data.max_days;
+    if (!days.value) days.value = data.default_days;
+    $("create").querySelector("button").disabled = !data.enabled;
+    const rows = $("rows");
+    rows.replaceChildren();
+    for (const t of data.tokens) {
+      const tr = document.createElement("tr");
+      if (data.all) tr.append(cell(t.owner));
+      tr.append(cell(t.name), cell(t.hint), cell(day(t.created)), cell(day(t.expires)), cell(day(t.last_used)));
+      const td = document.createElement("td");
+      const revoke = document.createElement("button");
+      revoke.className = "link";
+      revoke.textContent = "Revoke";
+      revoke.onclick = async () => {
+        if (!confirm(`Revoke "${t.name}"? Clients using it stop working within a minute.`)) return;
+        try { await call("DELETE", `${api}/${t.id}`); } catch (e) { alert(e.message); }
+        load();
+      };
+      td.append(revoke);
+      tr.append(td);
+      rows.append(tr);
+    }
+    $("empty").hidden = data.tokens.length > 0;
+  }
+
+  $("create").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    $("create-error").hidden = true;
+    try {
+      const t = await call("POST", api, { name: form.get("name"), days: Number(form.get("days")) });
+      $("token").textContent = t.token;
+      $("xmla").textContent = location.origin + "/xmla";
+      $("created").hidden = false;
+      event.target.reset();
+      load();
+    } catch (e) {
+      $("create-error").textContent = e.message;
+      $("create-error").hidden = false;
+    }
+  };
+  $("copy").onclick = () => navigator.clipboard.writeText($("token").textContent);
+  $("all").onchange = load;
+  load();
+</script>
+</body>
+</html>

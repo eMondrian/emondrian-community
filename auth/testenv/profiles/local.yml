@@ -1,0 +1,13 @@
+# Users kept in Keycloak (what auth/scripts/init.sh sets up)
+sources:
+  - name: local
+    type: local
+    groups: [emondrian-admins, emondrian-viewers]
+    users:
+      - username: testenv-admin
+        groups: [emondrian-admins]
+        initial_password_file: local-initial-password
+roles:
+  mapping:
+    emondrian-admins:  [emondrian-admins]
+    emondrian-viewers: [emondrian-viewers, emondrian-admins]

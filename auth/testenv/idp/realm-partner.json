@@ -1,0 +1,60 @@
+{
+  "realm": "partner",
+  "displayName": "Partner (test identity provider)",
+  "enabled": true,
+  "sslRequired": "none",
+  "groups": [{"name": "partner-analysts"}],
+  "users": [
+    {"username": "pat", "enabled": true, "email": "pat@partner.test", "emailVerified": true,
+     "firstName": "Pat", "lastName": "Partner", "groups": ["/partner-analysts"],
+     "credentials": [{"type": "password", "value": "Emondrian-Test-1", "temporary": false}]},
+    {"username": "quinn", "enabled": true, "email": "quinn@partner.test", "emailVerified": true,
+     "firstName": "Quinn", "lastName": "Nogroup",
+     "credentials": [{"type": "password", "value": "Emondrian-Test-1", "temporary": false}]}
+  ],
+  "clients": [
+    {
+      "clientId": "emondrian-broker",
+      "description": "eMondrian's Keycloak, identity brokering (source partner-oidc)",
+      "enabled": true, "publicClient": false, "secret": "partner-oidc-test-secret",
+      "standardFlowEnabled": true,
+      "redirectUris": ["${PUBLIC_URL}/auth/realms/emondrian/broker/partner-oidc/endpoint"],
+      "protocolMappers": [
+        {"name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+         "config": {"claim.name": "groups", "full.path": "false", "id.token.claim": "true",
+                    "access.token.claim": "true", "userinfo.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "${PUBLIC_URL}/auth/realms/emondrian",
+      "description": "eMondrian's Keycloak as SAML service provider (source partner-saml)",
+      "protocol": "saml", "enabled": true,
+      "redirectUris": ["${PUBLIC_URL}/auth/realms/emondrian/broker/partner-saml/endpoint"],
+      "attributes": {
+        "saml.client.signature": "false", "saml.assertion.signature": "true", "saml.server.signature": "true",
+        "saml_assertion_consumer_url_post": "${PUBLIC_URL}/auth/realms/emondrian/broker/partner-saml/endpoint",
+        "saml_name_id_format": "username", "saml.force.name.id.format": "true"
+      },
+      "protocolMappers": [
+        {"name": "username", "protocol": "saml", "protocolMapper": "saml-user-property-mapper",
+         "config": {"user.attribute": "username", "attribute.name": "username", "attribute.nameformat": "Basic"}},
+        {"name": "groups", "protocol": "saml", "protocolMapper": "saml-group-membership-mapper",
+         "config": {"attribute.name": "groups", "full.path": "false", "single": "true", "attribute.nameformat": "Basic"}}
+      ]
+    },
+    {
+      "clientId": "emondrian-direct",
+      "description": "eMondrian's gateway itself (mode oidc-direct)",
+      "enabled": true, "publicClient": false, "secret": "partner-direct-test-secret",
+      "standardFlowEnabled": true, "directAccessGrantsEnabled": true,
+      "redirectUris": ["${PUBLIC_URL}/redirect_uri"],
+      "attributes": {"post.logout.redirect.uris": "${PUBLIC_URL}/*"},
+      "protocolMappers": [
+        {"name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+         "config": {"claim.name": "groups", "full.path": "false", "id.token.claim": "true", "access.token.claim": "true"}},
+        {"name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+         "config": {"included.client.audience": "emondrian-direct", "access.token.claim": "true"}}
+      ]
+    }
+  ]
+}

@@ -33,7 +33,7 @@ It provides an analytical layer on top of relational databases, allowing users t
 - Windows 10/11 or a supported Linux distribution
 - Administrator / `sudo` rights — needed to install Docker and to start containers
 - **Port 80 must be free** — or pick another one. The web front door binds it, so an existing web server (IIS, Apache, nginx) will stop the setup; copy `.env.example` to `.env` and change `EMONDRIAN_PORT` there to use a different port instead (see [Quick Start](#quick-start))
-- About **2 GB** of free disk space, and roughly **700 MB** of downloads on the first run (container images, plus a ~26 MB sample dataset that expands to ~230 MB on disk)
+- About **4 GB** of free disk space, and roughly **1.5 GB** of downloads on the first run (container images, including the authentication gateway and Keycloak, plus a ~26 MB sample dataset that expands to ~230 MB on disk)
 
 Docker is installed automatically by the quick-start script if it is not already available.
 
@@ -73,7 +73,18 @@ powershell -ExecutionPolicy Bypass -File .\windows-setup.ps1
 
 The script installs Docker if needed, downloads a sample flight-data set, starts
 the containers and loads the data. Expect a few minutes on the first run, most of
-it spent downloading. Re-running it is safe — data already imported is skipped.
+it spent downloading and building the authentication images. Re-running it is
+safe — data already imported is skipped, settings already made are kept.
+
+**Authentication starts switched off**: everybody who reaches the server gets in
+without logging in, with all rights, so you can try everything at once. Switch it
+on (no restart, no data lost) before others get access — see
+[Authentication](#authentication):
+
+```bash
+./auth/scripts/authentication.sh on                 # Linux
+.\auth\scripts\authentication.ps1 on               # Windows
+```
 
 Once started, open the main page in your browser:
 
@@ -149,7 +160,10 @@ claude mcp add --transport http emondrian http://localhost/emondrian/mcp
 claude mcp add --transport sse  emondrian http://localhost/emondrian/mcp/sse   # older clients
 ```
 
-There are no authentication headers on either.
+With authentication off (the default) no headers are needed. With it on, the
+agent sends a user name and password as HTTP Basic, e.g.
+`--header "Authorization: Basic $(printf '%s' 'jdoe:password' | base64)"` — see
+[Authentication](#authentication).
 
 The `/emondrian/` prefix is part of the URL and not a typo: on the SSE
 transport the server's handshake tells the client to post back to
@@ -174,7 +188,8 @@ read or **write** server state rather than query data — `save_schema`
 overwrites a catalog's schema XML, `save_catalog` edits the catalog registry,
 `delete_catalog` deletes a catalog together with its schema file, its synthetic
 catalog and the generated data (permanently: keep your schemas in git), and
-`install_driver` adds a JDBC driver to the server. On this edition nothing is authenticated, so treat MCP access as
+`install_driver` adds a JDBC driver to the server. With authentication off,
+anyone who reaches the port has this access, so treat MCP access as
 administrative access.
 
 `get_csdl` returns one cube's model as Power BI sees it — the same CSDL
@@ -283,9 +298,10 @@ under **History**.
 
 Dashboards are kept in the `dashboard_data` volume. They need a key including
 `DASHBOARD` (see [Licence keys](#licence-keys)), which the free evaluation key
-includes; without one the page and the MCP tools say where to get it. Like the
-rest of this edition, the dashboards have no users or access control: anyone
-who reaches the port sees every one. To turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
+includes; without one the page and the MCP tools say where to get it. With
+authentication on, only logged-in users open them, but the dashboards are
+shared: every user who may open `/dashboard/` sees every dashboard with all its
+data, whatever the roles in the schemas say. To turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
 `docker compose up -d`: the page goes off and the MCP dashboard tools say so.
 
 ---
@@ -416,8 +432,11 @@ stricter one applies.
 docker compose stop          # stop, keep everything
 docker compose up -d         # start again
 docker compose down          # remove containers, keep the loaded data
-docker compose down -v       # remove containers and the ClickHouse data
+docker compose down -v       # remove containers, the ClickHouse data and the users kept in Keycloak
 ```
+
+`docker compose` includes the authentication services through `COMPOSE_FILE`
+in `.env`, which the setup script writes.
 
 The `logs/` directory is written by the container as `root`; removing it needs
 `sudo`.
@@ -469,25 +488,34 @@ extension: …`. The file name and the technical reason go to the server log
 
 ---
 
-## A Note on Access Control
+## Authentication
 
-The Community Edition ships with **no authentication and no access restrictions**:
-anyone who can reach the server can query data, edit schemas and read logs. That
-is deliberate for a local evaluation setup on `http://localhost`. Do not expose
-this configuration to an untrusted network as it stands.
+All traffic goes through an authentication gateway on `EMONDRIAN_PORT`, with
+Keycloak checking user names and passwords: browsers log in on a login page,
+Excel, Power BI, scripts and MCP agents send the user name and password (HTTP
+Basic). Users come from Keycloak itself, from your Active Directory or another
+LDAP directory, or both; their groups give them one of three roles —
+`emondrian-admins` (everything), `emondrian-editors` (edit schemas) and
+`emondrian-viewers` (query and read). Roles in the schemas decide which data each
+user sees.
 
-The MCP endpoint deserves its own mention: it is published on the same port as
-the rest, which Docker binds on **all interfaces**, and four of its ten tools
-read or write server state rather than query data — `save_schema` overwrites a
-catalog's schema XML. Treat reaching this port as administrative access, and
-keep the stack on a trusted network or bind `EMONDRIAN_PORT` to localhost. If
-nobody needs MCP, turn it off with `ENABLE_SERVICE_MCP=false`.
+**After setup, authentication is off**: anyone who can reach the server is the
+user `guest` with all rights — they can query data, edit schemas, read logs and,
+through MCP, overwrite schemas and install drivers. That is meant for trying
+eMondrian on your own machine or a trusted network. Switch it on with
+`./auth/scripts/authentication.sh on` (Windows: `.\auth\scripts\authentication.ps1 on`),
+then log in as `admin` with the password `0` and choose a new one. It takes
+effect at once, without a restart.
 
-CORS widens this to the browser: with the default `CORS_ALLOW_ORIGIN=*`, any web
-page open in a browser that can reach the server may query `/xmla` and `/api`
-through it. Set `CORS_ALLOW_ORIGIN` to the one origin that needs it when the
-server holds data that should stay private. Leaving it empty does not close this:
-the eMondrian server's own CORS handling still allows simple requests from any origin.
+Before others connect, set `PUBLIC_URL` in `.env` to the address they open and
+turn on HTTPS: without it passwords travel unencrypted, and the login page works
+only in a browser on the server itself. Users, Active Directory, roles, HTTPS
+and connecting each client: **[auth/README.md](auth/README.md)**.
+
+With authentication off, CORS widens access to the browser: with the default
+`CORS_ALLOW_ORIGIN=*`, any web page open in a browser that can reach the server
+may query `/xmla` and `/api` through it. Set `CORS_ALLOW_ORIGIN` to the one
+origin that needs it when the server holds data that should stay private.
 
 ---
 

@@ -1,0 +1,216 @@
+# Authentication overlay: an OpenResty gateway becomes the only published port, Keycloak behind
+# it authenticates users against Active Directory (LDAP, users are not imported), and eMondrian
+# trusts the identity the gateway forwards. See auth/README.md.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --build
+#
+# Keycloak and its database belong to the compose profile "keycloak" (COMPOSE_PROFILES=keycloak in
+# .env), which mode: broker in auth/identity.yml needs; mode: oidc-direct runs without them.
+
+services:
+
+  eMondrian:
+    environment:
+      # The REST API and MCP (mondrian.server.ServerPermissions) read X-Forwarded-User/-Groups
+      # only with this set; XML/A reads them through the callback in auth/emondrian/web.xml.
+      CATALINA_OPTS: "-Demondrian.security.trustForwardedUser=true"
+    volumes:
+      - ./auth/emondrian/web.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/web.xml:ro
+      # Server-level permissions (schema write, logs, licence) per AD group
+      - ./auth/emondrian/mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties:ro
+
+  emondrian_entry:
+    # Reachable only through the gateway
+    ports: !reset []
+
+  keycloak-db:
+    profiles: ["keycloak"]
+    image: postgres:17.10-alpine
+    container_name: emondrian_keycloak_db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD in .env}
+    volumes:
+      - keycloak_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  keycloak:
+    profiles: ["keycloak"]
+    image: quay.io/keycloak/keycloak:26.7.5
+    container_name: emondrian_keycloak
+    # Keycloak keeps its configuration, clients and sessions in keycloak-db; users are never
+    # stored (LDAP federation without import). The realm is imported from auth/keycloak only when
+    # it does not exist yet; auth/scripts/reimport-realm.sh applies later changes to the file.
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      # Browser-facing URLs and the token issuer; token/JWKS endpoints follow the request host,
+      # so the gateway can reach them inside the compose network.
+      KC_HOSTNAME: ${PUBLIC_URL:?set PUBLIC_URL in .env}/auth
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      # Users of external identity providers (OIDC, SAML) are kept for their session only
+      KC_FEATURES: transient-users
+      # CAs of the identity sources' certificates (LDAPS, OIDC/SAML providers): PEM files
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/truststores
+      # Placeholders in auth/keycloak/realm-emondrian.json
+      PUBLIC_URL: ${PUBLIC_URL}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-emondrian}
+    # For a directory server or identity provider missing from DNS, e.g.
+    # LDAP_EXTRA_HOST=dc01.example.com:10.0.0.10, IDP_EXTRA_HOST=adfs.example.com:10.0.0.11
+    extra_hosts:
+      - "${LDAP_EXTRA_HOST:-ldap-extra-host.invalid:127.0.0.1}"
+      - "${IDP_EXTRA_HOST:-idp-extra-host.invalid:127.0.0.1}"
+    volumes:
+      - ./auth/keycloak/realm-emondrian.json:/opt/keycloak/data/import/realm-emondrian.json:ro
+      - ./auth/secrets/truststore:/opt/keycloak/conf/truststores:ro
+      # Service keytab for browser logins with the Windows session (kerberos in identity.yml)
+      - ./auth/secrets/kerberos:/opt/keycloak/conf/kerberos:ro
+    healthcheck:
+      # The image has no curl; the management port serves /auth/health/ready
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /auth/health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - app_network
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+
+  # Applies auth/identity.yml to Keycloak (identity sources) and writes the gateway's config
+  # (claims, role mapping), then exits. auth/scripts/apply-config.sh runs it again after changes.
+  auth-config:
+    build: ./auth/configurator
+    image: emondrian-auth-config:local
+    container_name: emondrian_auth_config
+    command: ["apply"]
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: emondrian
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      PUBLIC_URL: ${PUBLIC_URL}
+    volumes:
+      - ${AUTH_IDENTITY_FILE:-./auth/identity.yml}:/config/identity.yml:ro
+      # Files named in identity.yml (bind_password_file, ...); read only by this container
+      - ${AUTH_SECRETS_DIR:-./auth/secrets}:/secrets:ro
+      - ./auth/secrets/truststore:/truststore:ro
+      - ./auth/secrets/kerberos:/kerberos:ro
+      - auth_generated:/generated
+    extra_hosts:
+      - "${LDAP_EXTRA_HOST:-ldap-extra-host.invalid:127.0.0.1}"
+      - "${IDP_EXTRA_HOST:-idp-extra-host.invalid:127.0.0.1}"
+    restart: "no"
+    networks:
+      - app_network
+    depends_on:
+      keycloak:
+        condition: service_healthy
+        required: false
+
+  # Personal access tokens (Excel, Power BI, scripts, MCP): only the gateway talks to it
+  auth-tokens:
+    build: ./auth/tokens
+    image: emondrian-auth-tokens:local
+    container_name: emondrian_auth_tokens
+    environment:
+      # Requests from the gateway are authenticated with a key derived from it
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+    volumes:
+      - auth_tokens:/data
+      # tokens.json from auth-config: personal_tokens settings of identity.yml
+      - auth_generated:/generated:ro
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  # Kerberos tickets (Negotiate) from Excel / Power BI on domain computers: only the gateway talks to it
+  auth-kerberos:
+    build: ./auth/kerberos
+    image: emondrian-auth-kerberos:local
+    container_name: emondrian_auth_kerberos
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+    volumes:
+      # http.keytab (kerberos.keytab_file in identity.yml)
+      - ./auth/secrets/kerberos:/etc/kerberos:ro
+      # kerberos.json from auth-config
+      - auth_generated:/generated:ro
+    # Same user as Keycloak's: files in auth/secrets/ must be readable by uid 1000
+    user: "1000:1000"
+    cap_drop: [ALL]
+    restart: unless-stopped
+    networks:
+      - app_network
+
+  auth_gateway:
+    build: ./auth/gateway
+    image: emondrian-auth-gateway:local
+    container_name: emondrian_auth_gateway
+    ports:
+      # Plain HTTP, or only a redirect to HTTPS once auth/secrets/tls/ holds a certificate
+      - "${EMONDRIAN_PORT:-80}:80"
+      - "${EMONDRIAN_TLS_PORT:-443}:443"
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: emondrian
+      OIDC_CLIENT_ID: emondrian-gateway
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-emondrian}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      # Space-separated addresses/CIDRs that may open Keycloak's admin console; empty: nobody
+      KEYCLOAK_ADMIN_ALLOW: ${KEYCLOAK_ADMIN_ALLOW:-}
+      GATEWAY_REAL_IP_FROM: ${GATEWAY_REAL_IP_FROM:-}
+      # Authentication methods accepted on /xmla, /api and /emondrian/mcp
+      AUTH_BEARER: ${AUTH_BEARER:-true}
+      AUTH_BASIC: ${AUTH_BASIC:-true}
+    volumes:
+      # tls.crt (certificate followed by its chain) and tls.key turn HTTPS on
+      - ./auth/secrets/tls:/etc/nginx/tls:ro
+      # gateway.json from auth-config: claims, role mapping, mode
+      - auth_generated:/etc/emondrian-auth:ro
+      # CAs the gateway trusts when it talks to an identity provider itself (oidc-direct)
+      - ./auth/secrets/truststore:/etc/nginx/truststore:ro
+    extra_hosts:
+      - "${IDP_EXTRA_HOST:-idp-extra-host.invalid:127.0.0.1}"
+    restart: unless-stopped
+    networks:
+      - app_network
+    depends_on:
+      emondrian_entry:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+        required: false
+      auth-config:
+        condition: service_completed_successfully
+      auth-tokens:
+        condition: service_healthy
+      auth-kerberos:
+        condition: service_healthy
+
+volumes:
+  keycloak_db:
+  auth_generated:
+  auth_tokens:

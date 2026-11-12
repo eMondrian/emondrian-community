@@ -1,0 +1,11 @@
+# No Keycloak: the test SSO proxy (port 8081) signs an assertion, as Cloudflare Access does
+mode: trusted-proxy
+trusted_proxy:
+  preset: cloudflare-access
+  team: unused
+  jwks_url: http://proxy.emtest.local:8082/certs.json
+  issuer: https://proxy.emtest.local
+  audience: emondrian-testenv
+roles:
+  mapping:
+    emondrian-viewers: [BI-Users]

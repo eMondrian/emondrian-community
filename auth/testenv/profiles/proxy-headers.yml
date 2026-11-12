@@ -1,0 +1,10 @@
+# No Keycloak: the test SSO proxy (port 8080 of testenv-proxy) passes user and groups in headers
+mode: trusted-proxy
+trusted_proxy:
+  preset: oauth2-proxy
+  addresses: [{PROXY_IP}]
+  secret_file: proxy-secret
+  logout_url: /
+roles:
+  mapping:
+    emondrian-viewers: [BI-Users]

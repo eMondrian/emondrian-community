@@ -1,0 +1,13 @@
+# No Keycloak: the gateway is a client of the external provider itself
+mode: oidc-direct
+sources:
+  - name: partner
+    type: oidc
+    preset: keycloak
+    issuer: http://{TESTENV_HOST}:{TESTENV_IDP_PORT}/realms/partner
+    client_id: emondrian-direct
+    client_secret_file: partner-direct-secret
+    basic_password_grant: true
+roles:
+  mapping:
+    emondrian-viewers: [partner-analysts]

@@ -1,0 +1,17 @@
+# OpenLDAP (preset openldap; this image keeps groups as groupOfUniqueNames)
+sources:
+  - name: testenv-openldap
+    type: ldap
+    preset: openldap
+    url: ldap://openldap.emtest.local:389
+    bind_dn: cn=admin,dc=emtest,dc=local
+    bind_password_file: openldap-admin-password
+    users_dn: ou=people,dc=emtest,dc=local
+    groups_dn: ou=groups,dc=emtest,dc=local
+    allowed_groups: [bi-users]
+    attributes:
+      group_object_classes: groupOfUniqueNames
+      membership_attribute: uniqueMember
+roles:
+  mapping:
+    emondrian-viewers: [bi-users]

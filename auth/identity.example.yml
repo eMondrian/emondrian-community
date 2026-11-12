@@ -1,0 +1,77 @@
+# Who may log in to eMondrian and which eMondrian roles they get. See auth/README.md.
+#
+# setup.sh / windows-setup.ps1 write auth/identity.yml on the first run (users kept in Keycloak,
+# authentication off). Adapt it from the examples below, then apply it with
+# auth/scripts/apply-config.sh (no restart) and test a user with auth/scripts/check-config.sh <user>.
+# Secrets are never written here: files named here are read from auth/secrets/.
+
+# Where users come from. Both kinds may be listed together.
+sources:
+
+  # Users kept in Keycloak itself. Listed users are created once, with a temporary password that
+  # must be changed at the first login (in the browser); add further users and change groups in
+  # Keycloak's admin console (PUBLIC_URL/auth/admin/, realm "emondrian").
+  - name: local
+    type: local
+    groups: [emondrian-admins, emondrian-editors, emondrian-viewers]
+    users:
+      - username: admin
+        groups: [emondrian-admins]
+        initial_password_file: initial-admin-password   # or initial_password: "0"
+
+  # Active Directory or another LDAP directory. Users are looked up at every login and never
+  # copied into Keycloak; their passwords are checked by the directory.
+  #- name: corp-ad                 # unique
+  #  type: ldap
+  #  preset: active-directory      # active-directory | openldap
+  #  url: ldaps://dc01.corp.example.com:636        # ldaps:// or ldap:// with start_tls: true
+  #  bind_dn: CN=svc_emondrian,OU=Service Accounts,DC=corp,DC=example,DC=com
+  #  bind_password_file: ad-bind-password          # file in auth/secrets/
+  #  users_dn: OU=Users,DC=corp,DC=example,DC=com  # searched with all its sub-OUs
+  #  groups_dn: OU=Groups,DC=corp,DC=example,DC=com
+  #  # Only members of these groups (directly or through nested groups) may log in. Leave out
+  #  # to let every enabled user in users_dn log in.
+  #  allowed_groups: [BI-Users, BI-Admins]
+  #  # Extra LDAP filter on users, ANDed with the above (optional)
+  #  #user_filter: (department=Finance)
+  #  # Log in with the user principal name (jdoe@corp.example.com) instead of sAMAccountName
+  #  #attributes:
+  #  #  username_attribute: userPrincipalName
+  #  # The LDAPS certificate must be signed by a CA in auth/secrets/truststore/ (PEM files).
+
+# eMondrian roles. The server permissions (auth/emondrian/mondrian.properties) and the schemas
+# (<RoleMember name="..."/>) name eMondrian roles; this table says which groups (or users, as
+# user:<name>) hold each one. Names are compared case-insensitively.
+roles:
+  mapping:
+    emondrian-admins:  [emondrian-admins]                                       # everything
+    emondrian-editors: [emondrian-editors, emondrian-admins]                    # edit schemas
+    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins] # read
+    # With Active Directory, name its groups, e.g.
+    #emondrian-admins:  [emondrian-admins, BI-Admins]
+    #emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins, BI-Users, BI-Admins]
+    # Data roles used in your schemas, e.g.:
+    #Sales EMEA: [Sales-EMEA, user:jdoe]
+  # Users holding none of the roles above are refused (403); false lets them in with no role
+  #require_role: true
+
+# Authentication off: everybody who reaches the server gets in without logging in (browser,
+# Excel, Power BI, MCP), as this one user with these roles. The sources above stay configured.
+# Switch with auth/scripts/authentication.sh on|off (Windows: authentication.ps1), no restart.
+open_access:
+  enabled: true
+  user: guest
+  roles: [emondrian-admins]
+
+# Sessions, lockout, Basic cache. Durations: 45s, 30m, 10h, 2d. Defaults shown.
+#policy:
+#  password: length(8) and notUsername   # new passwords of users kept in Keycloak
+#  session_idle: 30m          # browser session without activity
+#  session_max: 10h           # browser session at most
+#  lockout:                   # Keycloak blocks a user after failed logins; false: off
+#    failures: 5
+#    wait: 1m                 # first block, doubled after every further failure...
+#    max_wait: 15m            # ...up to this
+#  basic_cache: 5m            # a checked login of Excel or Power BI is reused this long:
+#                             # removing a user's access takes effect after at most this
+#  basic_failure_cache: 10s   # a refused login is refused again without asking
