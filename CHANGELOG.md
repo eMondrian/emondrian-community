@@ -10,6 +10,16 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.12.1
+
+Server `10.0.86` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.86` (engine `9.3.0-emondrian.86`, was `10.0.85`). The modules, the web tools, the Dashboard and the entry page are unchanged; `docker-compose.yml` changes only the server image tag.
+
+### Engine
+
+- **Numbers written with an exponent in a filter.** A `Filter` that compares a measure with a number written with an exponent, such as `[Measures].[Unit Sales] > 1E+9` or `> 5E+4`, failed with "Expected to get decimal, but got 1E+9". It now returns the same result as the number written out (`> 50000`).
+
 ## 2026.11.12
 
 Server `10.0.85` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
