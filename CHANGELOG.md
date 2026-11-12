@@ -10,6 +10,21 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.12
+
+Server `10.0.85` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Modules `0.0.0.105` (were `0.0.0.104`). The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+### Synthetic catalogs
+
+- **Fact tables with degenerate dimensions.** This fixes a cube whose fact table holds a dimension's columns itself (for example an order status or an order date on the orders table) next to a foreign key to a separate dimension table. Its synthetic fact table had too few rows, and most of its foreign keys pointed at no member. Now such a fact table:
+  - gets the usual fact size;
+  - has foreign keys that always point at real dimension rows;
+  - has the degenerate dimensions' members drawn per row, every member at least once;
+  - has real dates on a date dimension held on the fact table.
+- **FoodMart and OnTime.** Their synthetic catalogs are unchanged. A catalog with this kind of cube needs `generate_synthetic_catalog` again to get the corrected data.
+
 ## 2026.11.10.1
 
 Server `10.0.85` · modules `0.0.0.104` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
