@@ -10,6 +10,17 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.12.2
+
+Server `10.0.87` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.87` (engine `9.3.0-emondrian.87`, was `10.0.86`). The modules, the web tools, the Dashboard and the entry page are unchanged; `docker-compose.yml` changes only the server image tag. Out of the box nothing changes: every right stays open.
+
+### Engine
+
+- **A new format for server rights in `mondrian.properties`.** A right is now one line naming the roles that hold it, `mondrian.security.<right>.<value>=<role>,<role>`, with the rights `schema.read`, `schema.write`, `database.read`, `database.manage`, `logs.read`, `license.manage` and `impersonate.allow`. A role is a user name or a group name. A right with no line stays open to everyone; a right with a line goes only to the roles on it (`write` and `manage` include `read`); an empty line gives it to nobody. `mondrian.security.defaultRole` names the role of a caller who is not named on any line. The image's own file sets `mondrian.security.defaultRole=admin` and keeps every right commented out, so nothing is enforced until you uncomment one.
+- **The old `mondrian.security.role.<role>.*` keys are no longer read.** If your own `mondrian.properties` still has them, or has a key the server does not know, the server logs an error for each such key and refuses every server right until the file is corrected. Rewrite them in the new format before upgrading.
+
 ## 2026.11.12.1
 
 Server `10.0.86` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
