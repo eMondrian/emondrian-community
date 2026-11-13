@@ -10,6 +10,16 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.13
+
+Server `10.0.88` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.88` (engine unchanged, `9.3.0-emondrian.87`). The modules, the web tools, the Dashboard and the entry page are unchanged. Nothing changes in how the server behaves: every right stays open.
+
+### Server
+
+- **Administrative rights are set in `.env`, not in `mondrian.properties`.** The image's `mondrian.properties` no longer has a security section. The rights are `-Dmondrian.security.<right>=<roles>` options on `JAVA_TOOL_OPTIONS` in `.env`; `.env.example` explains them and carries a commented example. If you mount your own `mondrian.properties` with `mondrian.security.*` lines, they still work.
+
 ## 2026.11.12.2
 
 Server `10.0.87` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
