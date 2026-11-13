@@ -10,6 +10,42 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.12.2
+
+Server `10.0.87` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.87` (engine `9.3.0-emondrian.87`, was `10.0.86`). The modules, the web tools, the Dashboard and the entry page are unchanged; `docker-compose.yml` changes only the server image tag. Out of the box nothing changes: every right stays open.
+
+### Engine
+
+- **A new format for server rights in `mondrian.properties`.** A right is now one line naming the roles that hold it, `mondrian.security.<right>.<value>=<role>,<role>`, with the rights `schema.read`, `schema.write`, `database.read`, `database.manage`, `logs.read`, `license.manage` and `impersonate.allow`. A role is a user name or a group name. A right with no line stays open to everyone; a right with a line goes only to the roles on it (`write` and `manage` include `read`); an empty line gives it to nobody. `mondrian.security.defaultRole` names the role of a caller who is not named on any line. The image's own file sets `mondrian.security.defaultRole=admin` and keeps every right commented out, so nothing is enforced until you uncomment one.
+- **The old `mondrian.security.role.<role>.*` keys are no longer read.** If your own `mondrian.properties` still has them, or has a key the server does not know, the server logs an error for each such key and refuses every server right until the file is corrected. Rewrite them in the new format before upgrading.
+
+## 2026.11.12.1
+
+Server `10.0.86` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.86` (engine `9.3.0-emondrian.86`, was `10.0.85`). The modules, the web tools, the Dashboard and the entry page are unchanged; `docker-compose.yml` changes only the server image tag.
+
+### Engine
+
+- **Numbers written with an exponent in a filter.** A `Filter` that compares a measure with a number written with an exponent, such as `[Measures].[Unit Sales] > 1E+9` or `> 5E+4`, failed with "Expected to get decimal, but got 1E+9". It now returns the same result as the number written out (`> 50000`).
+
+## 2026.11.12
+
+Server `10.0.85` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Modules `0.0.0.105` (were `0.0.0.104`). The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+### Synthetic catalogs
+
+- **Fact tables with degenerate dimensions.** This fixes a cube whose fact table holds a dimension's columns itself (for example an order status or an order date on the orders table) next to a foreign key to a separate dimension table. Its synthetic fact table had too few rows, and most of its foreign keys pointed at no member. Now such a fact table:
+  - gets the usual fact size;
+  - has foreign keys that always point at real dimension rows;
+  - has the degenerate dimensions' members drawn per row, every member at least once;
+  - has real dates on a date dimension held on the fact table.
+- **FoodMart and OnTime.** Their synthetic catalogs are unchanged. A catalog with this kind of cube needs `generate_synthetic_catalog` again to get the corrected data.
+
 ## 2026.11.10.1
 
 Server `10.0.85` · modules `0.0.0.104` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`

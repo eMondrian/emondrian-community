@@ -125,7 +125,10 @@ them, so nothing else needs changing for your group names:
 | `emondrian-viewers` | query data, read schemas and the catalog registry |
 
 Users holding no role of `roles.mapping` cannot log in (403). The permissions themselves are in
-`auth/emondrian/mondrian.properties` (`mondrian.security.role.*`).
+`auth/emondrian/mondrian.properties`, one line per right naming the roles that hold it
+(`mondrian.security.schema.write=emondrian-admins,emondrian-editors`). The old keys
+`mondrian.security.role.<role>.*` of server 10.0.86 and earlier are not read any more: with one of
+them left in the file the server denies every right.
 
 **Which data a user sees** is set in the schemas. A `<Role>` applies to the users and roles named
 in its `<RoleMember>` elements; add your own role names to `roles.mapping` the same way:
