@@ -12,19 +12,26 @@ docker compose up -d --remove-orphans
 
 ## 2026.11.14.1
 
-Server `10.0.89` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2` · authentication gateway and Keycloak (new)
+Server `10.0.89` · modules `0.0.0.106` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2` · authentication gateway and Keycloak (new)
 
-Authentication. The server, the modules, the web tools and the Dashboard are unchanged.
+Authentication, and modules `0.0.0.106` (were `0.0.0.105`) with the MCP tools for it. The server image, the web tools and the Dashboard are unchanged.
 
 ### Authentication
 
 - **An authentication gateway with Keycloak** now sits in front of eMondrian and is the only published port. Browsers log in on a login page; Excel, Power BI, scripts and MCP agents send a user name and password (or a token). Users come from Keycloak itself, from Active Directory or another LDAP directory, or both. See `auth/README.md`.
 - **It starts with authentication off** (`open_access` in `auth/identity.yml`): everybody who reaches the server gets in without logging in, as `guest` with all rights. Switch it on, without a restart, before others get access: `./auth/scripts/authentication.sh on` (Windows: `.\auth\scripts\authentication.ps1 on`); `off` and `status` likewise.
-- **The switch is `auth/state/open_access.json`,** read by the gateway on each request, so it applies at once. `authentication.sh` writes it; from eMondrian modules 0.0.0.106 the MCP tools `get_open_access` and `set_open_access` do too. Anybody may switch authentication on; only a Keycloak administrator of the realm may switch it off.
+- **The switch is `auth/state/open_access.json`,** read by the gateway on each request, so it applies at once. `authentication.sh` writes it, and so do the MCP tools `get_open_access` and `set_open_access`. Anybody may switch authentication on; only a Keycloak administrator of the realm may switch it off.
 - **No self-signed certificate is created.** For HTTPS, put your certificate and key into `auth/secrets/tls/` (`tls.crt`, `tls.key`); until then the gateway serves plain HTTP.
 - **First login, once it is on:** `admin` with the password `0`, which must be changed at once. Add users and groups in Keycloak's admin console (`/auth/admin/`, realm `emondrian`).
 - **Rights per group.** eMondrian receives the user name and the groups unchanged. Server rights are set per group in `auth/emondrian/mondrian.properties` (`emondrian-admins`, `emondrian-editors`, `emondrian-viewers` out of the box); roles in the schemas decide which data each user sees.
 - **Setup** (`setup.sh`, `windows-setup.ps1`) now also needs `openssl`, and builds the gateway's images on the first run (a few minutes).
+
+### Modules
+
+- **MCP tools behind the authentication gateway,** acting as the person calling, with Keycloak deciding what they may do (the streamable endpoint `/emondrian/mcp`, logged in with a user name and password or a token):
+  - users and groups: `list_users`, `get_user`, `list_groups`, `get_group_members`, `create_user`, `update_user`, `set_user_groups`, `create_group`;
+  - the authentication switch: `get_open_access`, `set_open_access`.
+- A Keycloak user needs Keycloak's own rights for these: `view-users`/`manage-users` for users and groups, and `realm-admin` to switch authentication off. Grant them in Keycloak's admin console (realm `emondrian`); switching authentication on needs none.
 
 ### Upgrading
 
