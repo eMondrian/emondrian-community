@@ -13,9 +13,16 @@ services:
     environment:
       # The REST API and MCP (mondrian.server.ServerPermissions) read X-Forwarded-User/-Groups
       # only with this set; XML/A reads them through the callback in auth/emondrian/web.xml.
-      CATALINA_OPTS: "-Demondrian.security.trustForwardedUser=true"
+      # The MCP tools get_open_access/set_open_access switch authentication through the state file
+      # below; the Keycloak URL lets them (and the user and group tools) act as the caller there.
+      CATALINA_OPTS: >-
+        -Demondrian.security.trustForwardedUser=true
+        -Demondrian.mcp.authStateFile=/etc/emondrian-auth-state/open_access.json
+        -Demondrian.mcp.keycloak.url=http://keycloak:8080/auth
     volumes:
       - ./auth/emondrian/web.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/web.xml:ro
+      # open_access.json: whether authentication is off; written here (MCP set_open_access)
+      - ./auth/state:/etc/emondrian-auth-state
       # Server-level permissions (schema write, logs, licence) per AD group
       - ./auth/emondrian/mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties:ro
 
@@ -192,6 +199,8 @@ services:
       - auth_generated:/etc/emondrian-auth:ro
       # CAs the gateway trusts when it talks to an identity provider itself (oidc-direct)
       - ./auth/secrets/truststore:/etc/nginx/truststore:ro
+      # open_access.json: whether authentication is off, read on each request
+      - ./auth/state:/etc/emondrian-auth-state:ro
     extra_hosts:
       - "${IDP_EXTRA_HOST:-idp-extra-host.invalid:127.0.0.1}"
     restart: unless-stopped

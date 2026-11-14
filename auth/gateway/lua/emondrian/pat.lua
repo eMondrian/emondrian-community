@@ -105,7 +105,7 @@ end
 
 -- Access phase of /account/api/tokens: the browser session decides who the caller is.
 function M.api()
-  if config.open_access then
+  if config.open_access_on() then
     -- Tokens belong to logged-in users; with authentication off there are none
     ngx.status = ngx.HTTP_FORBIDDEN
     ngx.header["Content-Type"] = "application/json"

@@ -5,4 +5,5 @@ drivers/
 share/
 auth/secrets/
 auth/identity.yml
+auth/state/
 __pycache__/

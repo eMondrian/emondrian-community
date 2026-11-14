@@ -102,7 +102,7 @@ HTTP_PORT="$(env_value EMONDRIAN_PORT)"; HTTP_PORT="${HTTP_PORT:-80}"
 # --- directories, certificate -----------------------------------------------------------------
 step "Certificate"
 # Created here so that Docker does not create them as root
-mkdir -p logs auth/secrets/tls auth/secrets/truststore auth/secrets/kerberos
+mkdir -p logs auth/secrets/tls auth/secrets/truststore auth/secrets/kerberos auth/state
 chmod 700 auth/secrets auth/secrets/tls auth/secrets/kerberos
 if [[ "$PUBLIC_URL" == http://* ]]; then
     [ -f auth/secrets/tls/tls.crt ] && fail "PUBLIC_URL is $PUBLIC_URL but auth/secrets/tls/ holds a certificate: remove it, or use an https:// URL"
@@ -156,6 +156,10 @@ open_access:
   user: guest
   groups: [emondrian-admins]
 EOF
+    # The switch the gateway reads on each request (MCP set_open_access and authentication.sh write it too)
+    printf '{\n  "enabled": %s,\n  "changed_by": "init.sh",\n  "changed_at": "%s"\n}\n' \
+        "$OPEN" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > auth/state/open_access.json
+    chmod 644 auth/state/open_access.json
     echo "written: source local, administrator $ADMIN_USER, authentication $($OPEN && echo "OFF (open_access)" || echo on)"
 fi
 

@@ -86,8 +86,28 @@ function Set-OpenAccess([string[]]$Lines, [bool]$Enabled) {
 
 $Lines = @(Get-Content -Path $File)
 
+# The switch the gateway reads on each request; the MCP tool set_open_access writes it too
+$StateDir = Join-Path (Get-Location) "auth/state"
+$StateFile = Join-Path $StateDir "open_access.json"
+function Get-StateEnabled {
+    if (-not (Test-Path $StateFile)) { return $null }
+    $M = Select-String -Path $StateFile -Pattern '"enabled"\s*:\s*(true|false)' | Select-Object -First 1
+    if ($M) { return $M.Matches[0].Groups[1].Value -eq "true" }
+    return $null
+}
+function Set-State([bool]$Enabled) {
+    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+    $Value = if ($Enabled) { "true" } else { "false" }
+    $Json = "{`n  ""enabled"": $Value,`n  ""changed_by"": ""$env:USERNAME"",`n  ""changed_at"": ""$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"",`n  ""changed_with"": ""authentication.ps1""`n}`n"
+    $Tmp = Join-Path $StateDir ".open_access.tmp"
+    [System.IO.File]::WriteAllText($Tmp, $Json)
+    Move-Item -Force -Path $Tmp -Destination $StateFile
+}
+
 if ($Action -eq "status") {
-    if (Get-OpenAccess $Lines) { "off" } else { "on" }
+    $State = Get-StateEnabled
+    if ($null -eq $State) { $State = Get-OpenAccess $Lines }
+    if ($State) { "off" } else { "on" }
     exit 0
 }
 
@@ -98,6 +118,7 @@ $NewLines = Set-OpenAccess $Lines $WantOpen
 if ((Get-OpenAccess @(Get-Content -Path $File)) -ne $WantOpen) {
     Fail "could not change open_access in $File; edit it by hand"
 }
+Set-State $WantOpen
 
 # apply-config: identity.yml to Keycloak and the gateway (COMPOSE_FILE in .env includes the
 # authentication overlay)

@@ -750,10 +750,15 @@ def tokens_settings(identity):
 def open_access_settings(identity):
     """open_access in identity.yml: everybody gets in without logging in, as one guest user in
     the groups listed (a demo or an evaluation; `roles` is the former name of `groups`). Sources stay configured, so switching it off
-    again (enabled: false, apply-config.sh) needs nothing else. None when off."""
+    again (enabled: false, apply-config.sh) needs nothing else.
+
+    Always {enabled, user, groups}: the guest is known even while it is off, because the switch
+    itself is auth/state/open_access.json, which the gateway reads on each request and the MCP
+    tool set_open_access or authentication.sh writes; `enabled` here is what applies while that
+    file does not exist."""
     section = identity.get("open_access")
     if section in (None, False):
-        return None
+        return {"enabled": False, "user": "guest", "groups": ["emondrian-admins"]}
     if section is True:
         section = {"enabled": True}
     if not isinstance(section, dict):
@@ -761,15 +766,14 @@ def open_access_settings(identity):
     unknown = set(section) - {"enabled", "user", "groups", "roles"}
     if unknown:
         raise ConfigError(f"identity.yml: unknown open_access setting(s): {', '.join(sorted(unknown))}")
-    if not section.get("enabled", True):
-        return None
+    enabled = bool(section.get("enabled", True))
     user = str(section.get("user") or "guest")
     if not all(c.isalnum() or c in "._@-" for c in user):
         raise ConfigError("identity.yml: open_access.user: letters, digits and . _ @ - only")
     groups = section.get("groups", section.get("roles", ["emondrian-admins"]))
     if not isinstance(groups, list) or not groups or not all(isinstance(g, str) and g and "," not in g for g in groups):
         raise ConfigError("identity.yml: open_access.groups must list groups, e.g. [emondrian-admins]")
-    return {"user": user, "groups": groups}
+    return {"enabled": enabled, "user": user, "groups": groups}
 
 
 def write_tokens_settings(identity):
@@ -1106,7 +1110,7 @@ def write_gateway_config(identity, oidc=None, proxy=None):
     os.chmod(tmp, 0o600)
     os.replace(tmp, GATEWAY_CONFIG)
     write_tokens_settings(identity)
-    if config["open_access"]:
+    if config["open_access"]["enabled"]:
         guest = config["open_access"]
         log(f"WARNING: authentication is OFF (open_access): everybody who reaches the server gets in "
             f"as {guest['user']} in {', '.join(guest['groups'])}, without logging in")
@@ -1167,10 +1171,10 @@ def apply():
 def check(username=None):
     identity = load_identity()
     config = gateway_config(identity)
-    if config["open_access"]:
+    if config["open_access"]["enabled"]:
         guest = config["open_access"]
         log(f"     | open_access | authentication is OFF: every request is {guest['user']} "
-            f"({', '.join(guest['roles'])}); the sources below apply once it is switched off")
+            f"({', '.join(guest['groups'])}); the sources below apply once it is switched off")
     if identity["mode"] == "trusted-proxy":
         try:
             proxy = proxy_config(identity)

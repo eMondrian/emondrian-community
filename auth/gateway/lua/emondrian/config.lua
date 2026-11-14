@@ -117,7 +117,8 @@ function M.load()
   -- Directory groups and groups of external identity providers (external_groups)
   M.groups_claims  = type(gateway.groups_claims) == "table" and gateway.groups_claims or { "groups" }
   M.default_idp    = type(gateway.default_idp) == "string" and gateway.default_idp or nil
-  -- open_access in identity.yml: authentication is off, every request is this user ({user, groups})
+  -- open_access in identity.yml: the guest every request is while authentication is off
+  -- ({enabled, user, groups}); whether it is off is decided per request, see M.open_access_on
   local open = gateway.open_access
   M.open_access = type(open) == "table" and type(open.user) == "string" and type(open.groups) == "table"
                   and open or nil
@@ -126,6 +127,39 @@ function M.load()
     M.idp_aliases[alias] = true
   end
   return M
+end
+
+-- auth/state/open_access.json, written by the MCP tool set_open_access and by
+-- auth/scripts/authentication.sh: {"enabled": true|false}. Read on each request (cached here for
+-- two seconds per worker), so a switch applies without a reload. Without the file, identity.yml's
+-- open_access.enabled applies; a file that cannot be read leaves authentication on.
+local STATE_FILE = "/etc/emondrian-auth-state/open_access.json"
+local state_cache = { at = -1, value = nil }
+
+function M.open_access_on()
+  if not M.open_access then
+    return false
+  end
+  local now = ngx.now()
+  if now - state_cache.at >= 2 then
+    local value = M.open_access.enabled == true
+    local file = io.open(STATE_FILE, "r")
+    if file then
+      local decoded = cjson.decode(file:read("*a"))
+      file:close()
+      if type(decoded) == "table" and type(decoded.enabled) == "boolean" then
+        value = decoded.enabled
+      else
+        ngx.log(ngx.ERR, STATE_FILE, " holds no \"enabled\": true|false; authentication stays on")
+        value = false
+      end
+    end
+    if value ~= state_cache.value and state_cache.at >= 0 then
+      ngx.log(ngx.WARN, "open access switched ", value and "ON (authentication off)" or "OFF (authentication on)")
+    end
+    state_cache.at, state_cache.value = now, value
+  end
+  return state_cache.value
 end
 
 return M

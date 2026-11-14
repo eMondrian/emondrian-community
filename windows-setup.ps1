@@ -607,7 +607,7 @@ Set-EnvDefault "KEYCLOAK_ADMIN_PASSWORD" (New-RandomHex 16)
 # Keycloak's admin console: this machine and private networks (Docker Desktop forwards from them)
 Set-EnvDefault "KEYCLOAK_ADMIN_ALLOW" "127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
 
-foreach ($Dir in @("logs", "auth/secrets/tls", "auth/secrets/truststore", "auth/secrets/kerberos")) {
+foreach ($Dir in @("logs", "auth/secrets/tls", "auth/secrets/truststore", "auth/secrets/kerberos", "auth/state")) {
     New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir $Dir) | Out-Null
 }
 
@@ -642,6 +642,9 @@ open_access:
   groups: [emondrian-admins]
 "@
     [System.IO.File]::WriteAllText($IdentityFile, (($Identity -replace "`r`n", "`n") + "`n"))
+    # The switch the gateway reads on each request (MCP set_open_access and authentication.ps1 write it too)
+    $State = "{`n  ""enabled"": true,`n  ""changed_by"": ""windows-setup.ps1"",`n  ""changed_at"": ""$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))""`n}`n"
+    [System.IO.File]::WriteAllText((Join-Path $ScriptDir "auth/state/open_access.json"), $State)
     Write-Host "auth/identity.yml: written (local administrator admin, authentication OFF)"
 }
 

@@ -138,7 +138,7 @@ function M.api()
     return
   end
 
-  if config.open_access then
+  if config.open_access_on() then
     return open_access()
   end
 
@@ -199,7 +199,7 @@ local function web_through_proxy()
 end
 
 function M.web()
-  if config.open_access then
+  if config.open_access_on() then
     -- No login, so nothing to log out of or to come back to
     if ngx.var.uri == "/logout" or ngx.var.uri == "/redirect_uri" then
       return ngx.redirect("/")

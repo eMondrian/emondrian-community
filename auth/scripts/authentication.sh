@@ -9,7 +9,9 @@
 #   ./auth/scripts/authentication.sh status   prints on or off
 #
 # Edits only the "enabled:" line of the open_access section (adding the section when missing),
-# then applies identity.yml with apply-config.sh.
+# then applies identity.yml with apply-config.sh. The switch itself is auth/state/open_access.json,
+# which the gateway reads on each request and the MCP tool set_open_access also writes; this
+# script writes it too, so both ways agree, and status reads it first.
 set -Eeuo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -65,9 +67,30 @@ EOF
     [ "$(open_access_enabled)" = "$1" ] || fail "could not change open_access in $FILE; edit it by hand"
 }
 
+STATE=./auth/state/open_access.json
+
+# Prints "true" or "false" from the state file, or nothing when it is missing or unreadable
+state_enabled() {
+    [ -f "$STATE" ] || return 0
+    grep -Eo '"enabled"[[:space:]]*:[[:space:]]*(true|false)' "$STATE" | grep -Eo '(true|false)$' | head -1
+}
+
+# Written beside it and renamed over it, so the gateway never reads half a file (the directory is
+# ours even when the MCP tool, running as root in its container, wrote the file last)
+write_state() {  # true | false
+    mkdir -p ./auth/state
+    local tmp
+    tmp="$(mktemp ./auth/state/.open_access.XXXXXX)"
+    printf '{\n  "enabled": %s,\n  "changed_by": "%s",\n  "changed_at": "%s",\n  "changed_with": "authentication.sh"\n}\n' \
+        "$1" "${USER:-$(id -un)}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp"
+    chmod 644 "$tmp"
+    mv -f "$tmp" "$STATE"
+}
+
 case "${1:-}" in
     status)
-        [ "$(open_access_enabled)" = true ] && echo off || echo on
+        state="$(state_enabled)"
+        [ "${state:-$(open_access_enabled)}" = true ] && echo off || echo on
         exit 0 ;;
     on)  enabled=false ;;
     off) enabled=true ;;
@@ -75,6 +98,7 @@ case "${1:-}" in
 esac
 
 set_enabled "$enabled"
+write_state "$enabled"
 ./auth/scripts/apply-config.sh
 echo
 if [ "$enabled" = true ]; then
