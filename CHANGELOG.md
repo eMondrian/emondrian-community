@@ -10,6 +10,28 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.14
+
+Server `10.0.89` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.89` (engine `9.3.0-emondrian.88`). The modules, the web tools, the Dashboard and the entry page are unchanged. These changes concern schemas with data roles (`<Role>` with a `<HierarchyGrant>`); without roles nothing changes.
+
+### Server
+
+- **DAX and Power BI work under a role that restricts a hierarchy.** The attribute hierarchies a restricted hierarchy's levels are built from now show the members of that level the role sees. Before, they had no access at all, so every DAX query on that dimension failed with "Illegal access to members of hierarchy" and Power BI's field list lost the columns. A grant written for the attribute hierarchy itself takes precedence. An attribute hierarchy that cannot be derived (a hidden key attribute) gets a message saying to grant it in the role.
+- **ClickHouse: a role with more than `mondrian.rolap.maxConstraints` (1,000) members keeps its filter in the SQL**, when the connect string raises both `max_query_size` and `max_ast_elements` (the shipped connect strings do). Before, the filter was dropped and the whole level was read and filtered in memory; the values were right, but slow.
+- **Faster totals under `rollupPolicy="partial"` with many granted members.** A role granting 2,000 members of one level took 169 s for an Airline × Year pivot; it now takes about 15 s (1,000 members: 35 s → 6 s).
+
+## 2026.11.13
+
+Server `10.0.88` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Server `10.0.88` (engine unchanged, `9.3.0-emondrian.87`). The modules, the web tools, the Dashboard and the entry page are unchanged. Nothing changes in how the server behaves: every right stays open.
+
+### Server
+
+- **Administrative rights are set in `.env`, not in `mondrian.properties`.** The image's `mondrian.properties` no longer has a security section. The rights are `-Dmondrian.security.<right>=<roles>` options on `JAVA_TOOL_OPTIONS` in `.env`; `.env.example` explains them and carries a commented example. If you mount your own `mondrian.properties` with `mondrian.security.*` lines, they still work.
+
 ## 2026.11.12.2
 
 Server `10.0.87` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
