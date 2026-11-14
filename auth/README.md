@@ -29,8 +29,11 @@ see and do (see [Roles](#roles)).
 
 On Windows: `.\auth\scripts\authentication.ps1 on` (or `off`, `status`).
 
-Nothing restarts and no data changes: the script edits `open_access` in `auth/identity.yml` and
-applies it. With authentication **off**, everybody who reaches the port is the user `guest` with
+Nothing restarts and no data changes: the script writes the switch, `auth/state/open_access.json`,
+which the gateway reads on each request, and records the same in `open_access` of
+`auth/identity.yml` (which also names the guest and its groups). From eMondrian modules 0.0.0.106
+the MCP tools `get_open_access` and `set_open_access` switch it too: anybody may switch
+authentication on, only a Keycloak administrator of the realm may switch it off. With authentication **off**, everybody who reaches the port is the user `guest` with
 all rights (`emondrian-admins`); Excel connects with *Windows authentication* and no password, and
 a saved user name and password are ignored. Use it on your own machine or a trusted network only.
 
