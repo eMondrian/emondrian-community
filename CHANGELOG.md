@@ -10,6 +10,24 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## 2026.11.14.1
+
+Server `10.0.89` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2` · authentication gateway and Keycloak (new)
+
+Authentication. The server, the modules, the web tools and the Dashboard are unchanged.
+
+### Authentication
+
+- **An authentication gateway with Keycloak** now sits in front of eMondrian and is the only published port. Browsers log in on a login page; Excel, Power BI, scripts and MCP agents send a user name and password (or a token). Users come from Keycloak itself, from Active Directory or another LDAP directory, or both. See `auth/README.md`.
+- **It starts with authentication off** (`open_access` in `auth/identity.yml`): everybody who reaches the server gets in without logging in, as `guest` with all rights. Switch it on, without a restart, before others get access: `./auth/scripts/authentication.sh on` (Windows: `.\auth\scripts\authentication.ps1 on`); `off` and `status` likewise.
+- **First login, once it is on:** `admin` with the password `0`, which must be changed at once. Add users and groups in Keycloak's admin console (`/auth/admin/`, realm `emondrian`).
+- **Rights per group.** eMondrian receives the user name and the groups unchanged. Server rights are set per group in `auth/emondrian/mondrian.properties` (`emondrian-admins`, `emondrian-editors`, `emondrian-viewers` out of the box); roles in the schemas decide which data each user sees.
+- **Setup** (`setup.sh`, `windows-setup.ps1`) now also needs `openssl`, and builds the gateway's images on the first run (a few minutes).
+
+### Upgrading
+
+- After `git pull`, run `./setup.sh` (Windows: `windows-setup.ps1`) once: it adds the new settings to `.env` and writes `auth/identity.yml` with authentication off, keeping what is already there. Behaviour stays open until you switch authentication on.
+
 ## 2026.11.14
 
 Server `10.0.89` · modules `0.0.0.105` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
