@@ -9,11 +9,6 @@ sources:
     users_dn: OU=eMondrian,DC=emtest,DC=local
     groups_dn: OU=Groups,OU=eMondrian,DC=emtest,DC=local
     allowed_groups: [BI-Users, BI-Admins, BI-Modelers]
-roles:
-  mapping:
-    emondrian-admins:  [BI-Admins]
-    emondrian-editors: [BI-Modelers]
-    emondrian-viewers: [BI-Users, BI-Admins, BI-Modelers]
 kerberos:
   source: testenv-ad
   service_principal: HTTP/{EMONDRIAN_HOST}@EMTEST.LOCAL

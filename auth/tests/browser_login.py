@@ -8,7 +8,6 @@ in on Keycloak's own login page (directory sources). The script fills the first 
 password field (Keycloak, AD FS and most providers' login pages), submits the automatic SAML
 forms, and fails on any other page. TEST_PASSWORD_FILE is read inside this process and never
 printed. Optional: RESOLVE (host=ip,... like curl --resolve), BASE_URL (default PUBLIC_URL from .env), CA_FILE, ENV_FILE,
-EXPECT_DENIED=1 (the user must be refused with 403: no eMondrian role).
 """
 import html.parser
 import http.cookiejar
@@ -53,7 +52,6 @@ USER = os.environ["TEST_USER"]
 with open(os.path.expanduser(os.environ["TEST_PASSWORD_FILE"]), "rb") as f:
     PASSWORD = f.read().decode().rstrip("\r\n")
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else None
-EXPECT_DENIED = os.environ.get("EXPECT_DENIED") == "1"
 
 CONTEXT = ssl.create_default_context(cafile=os.environ.get("CA_FILE") or None)
 JAR = http.cookiejar.CookieJar()
@@ -160,10 +158,6 @@ def main():
         return 1
     status, page = result
 
-    if EXPECT_DENIED:
-        ok = status == 403
-        print(f"{'OK  ' if ok else 'FAIL'} | refused without an eMondrian role | HTTP {status}: {page.strip()[:120]}")
-        return 0 if ok else 1
     print(f"{'OK  ' if status == 200 else 'FAIL'} | logged in, entry page | HTTP {status}")
 
     cubes = (

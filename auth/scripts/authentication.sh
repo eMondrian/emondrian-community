@@ -2,7 +2,7 @@
 # Switches authentication on or off without restarting anything (open_access in identity.yml).
 #
 #   ./auth/scripts/authentication.sh off      everybody gets in without logging in, as the
-#                                             open_access user (default "guest") with its roles
+#                                             open_access user (default "guest") in its groups
 #                                             (default emondrian-admins): a demo or a trial
 #   ./auth/scripts/authentication.sh on       logins are required again (the sources of
 #                                             identity.yml, unchanged meanwhile)
@@ -55,11 +55,11 @@ set_enabled() {  # true | false
         cat >> "$FILE" <<'EOF'
 
 # Authentication off: everybody who reaches the server gets in without logging in, as the user
-# below with the roles below. Switch with auth/scripts/authentication.sh on|off (no restart).
+# below in the groups below. Switch with auth/scripts/authentication.sh on|off (no restart).
 open_access:
   enabled: true
   user: guest
-  roles: [emondrian-admins]
+  groups: [emondrian-admins]
 EOF
     fi
     [ "$(open_access_enabled)" = "$1" ] || fail "could not change open_access in $FILE; edit it by hand"

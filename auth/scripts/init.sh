@@ -132,8 +132,9 @@ else
     cat > auth/identity.yml <<EOF
 # Quick start (auth/scripts/init.sh): users kept in Keycloak itself. Add users in Keycloak's admin
 # console ($PUBLIC_URL/auth/admin/, realm "emondrian", user "admin" with KEYCLOAK_ADMIN_PASSWORD
-# from .env) and put them into the groups below. For the customer's own directory or identity
-# provider, see auth/identity.example.yml and auth/docs/configuration-guide.md.
+# from .env) and put them into the groups below; what each group may do on the server is set in
+# auth/emondrian/mondrian.properties. For your Active Directory, see
+# auth/identity.example.yml.
 sources:
   - name: local
     type: local
@@ -143,18 +144,12 @@ sources:
         groups: [emondrian-admins]
         initial_password_file: initial-admin-password   # temporary: changed at the first login
 
-roles:
-  mapping:
-    emondrian-admins:  [emondrian-admins]
-    emondrian-editors: [emondrian-editors, emondrian-admins]
-    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins]
-
 # Authentication off: everybody who reaches the server gets in without logging in, as the user
-# below with the roles below. Switch with auth/scripts/authentication.sh on|off (no restart).
+# below in the groups below. Switch with auth/scripts/authentication.sh on|off (no restart).
 open_access:
   enabled: $OPEN
   user: guest
-  roles: [emondrian-admins]
+  groups: [emondrian-admins]
 EOF
     echo "written: source local, administrator $ADMIN_USER, authentication $($OPEN && echo "OFF (open_access)" || echo on)"
 fi

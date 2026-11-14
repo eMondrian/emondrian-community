@@ -6,6 +6,3 @@ trusted_proxy:
   jwks_url: http://proxy.emtest.local:8082/certs.json
   issuer: https://proxy.emtest.local
   audience: emondrian-testenv
-roles:
-  mapping:
-    emondrian-viewers: [BI-Users]

@@ -71,7 +71,7 @@ OIDC_PRESETS = {
     "keycloak": {"scopes": "openid profile email", "username_claim": "preferred_username", "groups_claim": "groups"},
     # Okta: the authorization server needs a "groups" claim
     "okta": {"scopes": "openid profile email groups", "username_claim": "preferred_username", "groups_claim": "groups"},
-    # Google Workspace has no group claim: map users (user:<email>) in roles.mapping
+    # Google Workspace has no group claim: name users (their e-mail) in the schemas and rights
     "google": {"scopes": "openid profile email", "username_claim": "email", "groups_claim": None},
     "generic": {"scopes": "openid profile email", "username_claim": "preferred_username", "groups_claim": "groups"},
 }

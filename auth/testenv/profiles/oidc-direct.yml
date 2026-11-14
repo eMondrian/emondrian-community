@@ -8,6 +8,3 @@ sources:
     client_id: emondrian-direct
     client_secret_file: partner-direct-secret
     basic_password_grant: true
-roles:
-  mapping:
-    emondrian-viewers: [partner-analysts]

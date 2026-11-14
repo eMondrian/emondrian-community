@@ -24,8 +24,3 @@ sources:
     username_attribute: username
     groups_attribute: groups
     username_template: ${ATTRIBUTE.username}@saml
-roles:
-  mapping:
-    emondrian-admins:  [BI-Admins]
-    emondrian-editors: [BI-Modelers]
-    emondrian-viewers: [BI-Users, BI-Admins, BI-Modelers, partner-analysts]

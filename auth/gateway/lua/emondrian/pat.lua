@@ -4,8 +4,7 @@
 -- api():    /account/api/tokens, the API of the /account/tokens page; the caller is the browser
 --           session's user, whose groups go with a new token.
 --
--- The owner's groups are stored with the token; roles.mapping turns them into eMondrian roles at
--- every use, so mapping changes apply to existing tokens.
+-- The owner's groups are stored with the token and forwarded with every use.
 
 local http     = require("resty.http")
 local cjson    = require("cjson.safe")
@@ -126,13 +125,7 @@ function M.api()
     ngx.say('{"error":"not logged in"}')
     return ngx.exit(ngx.HTTP_UNAUTHORIZED)
   end
-  local ok, reason = identity.set(claims, "session")
-  if not ok then
-    ngx.status = ngx.HTTP_FORBIDDEN
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({ error = reason == "no_role" and "you hold no eMondrian role" or "no user name" }))
-    return ngx.exit(ngx.HTTP_FORBIDDEN)
-  end
+  identity.set(claims, "session")
   -- Changes only from this site's own page (SameSite=Lax already keeps other sites' POSTs out)
   local method = ngx.req.get_method()
   if method ~= "GET" then

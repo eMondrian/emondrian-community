@@ -4,7 +4,7 @@
 -- Header-based proxies are believed only for requests from trusted_proxy.addresses (and with the
 -- shared secret header, when one is set). JWT-based proxies sign an assertion, checked here
 -- against the proxy's keys (jwks_url), issuer and audience. Either way the result is
--- {user = …, groups = {…}}, which identity.lua maps to eMondrian roles.
+-- {user = …, groups = {…}}, which identity.lua forwards to eMondrian.
 
 local openidc = require("resty.openidc")
 local config  = require("emondrian.config")

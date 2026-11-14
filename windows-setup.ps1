@@ -622,7 +622,8 @@ else {
     $Identity = @"
 # Quick start (windows-setup.ps1): users kept in Keycloak itself. Add users in Keycloak's admin
 # console ($WebBase/auth/admin/, realm "emondrian", user "admin" with KEYCLOAK_ADMIN_PASSWORD
-# from .env) and put them into the groups below. For your Active Directory, see
+# from .env) and put them into the groups below; what each group may do on the server is set in
+# auth/emondrian/mondrian.properties. For your Active Directory, see
 # auth/identity.example.yml.
 sources:
   - name: local
@@ -633,18 +634,12 @@ sources:
         groups: [emondrian-admins]
         initial_password_file: initial-admin-password   # temporary: changed at the first login
 
-roles:
-  mapping:
-    emondrian-admins:  [emondrian-admins]
-    emondrian-editors: [emondrian-editors, emondrian-admins]
-    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins]
-
 # Authentication off: everybody who reaches the server gets in without logging in, as the user
-# below with the roles below. Switch with auth/scripts/authentication.ps1 on|off (no restart).
+# below in the groups below. Switch with auth/scripts/authentication.ps1 on|off (no restart).
 open_access:
   enabled: true
   user: guest
-  roles: [emondrian-admins]
+  groups: [emondrian-admins]
 "@
     [System.IO.File]::WriteAllText($IdentityFile, (($Identity -replace "`r`n", "`n") + "`n"))
     Write-Host "auth/identity.yml: written (local administrator admin, authentication OFF)"

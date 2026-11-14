@@ -1,9 +1,9 @@
 -- Turns verified claims into the identity eMondrian receives: $auth_user and $auth_groups, sent
 -- as X-Forwarded-User / X-Forwarded-Groups by emondrian-proxy.conf.
 --
--- The groups the identity source reports are translated into eMondrian roles with
--- roles.mapping from auth/identity.yml, so the schemas and the server permissions name the
--- product's roles, not the customer's groups.
+-- The groups go to eMondrian as the identity source reports them. Every authenticated user gets
+-- in; what a user may see and do is eMondrian's decision: server rights in
+-- auth/emondrian/mondrian.properties, data roles (<RoleMember>) in the schemas.
 
 local config = require("emondrian.config")
 
@@ -37,34 +37,6 @@ local function group_names(value)
   return groups
 end
 
--- eMondrian roles held by the user, plus their own groups when forward_groups is set.
-local function roles(user, groups)
-  local mapping = config.role_mapping
-  if not mapping then
-    return groups
-  end
-  local held = { ["user:" .. user:lower()] = true }
-  for _, group in ipairs(groups) do
-    held[group:lower()] = true
-  end
-  local result = {}
-  for role, members in pairs(mapping) do
-    for _, member in ipairs(members) do
-      if held[member:lower()] then
-        result[#result + 1] = one_line(role):gsub(",", "")
-        break
-      end
-    end
-  end
-  table.sort(result)
-  if config.forward_groups then
-    for _, group in ipairs(groups) do
-      result[#result + 1] = group
-    end
-  end
-  return result
-end
-
 -- Picks the user name and groups out of verified claims (claims.username / claims.groups in
 -- identity.yml, plus external_groups). Returns them, or nil when the claims carry no user name.
 function M.from_claims(claims)
@@ -85,20 +57,15 @@ function M.from_claims(claims)
 end
 
 -- claims: verified token claims. method: how the caller authenticated, for the audit log.
--- Returns true, or false and "no_user" (the claims name nobody) or "no_role" (require_role is set
--- and the user holds no eMondrian role).
+-- Returns true, or false and "no_user" (the claims name nobody).
 function M.set(claims, method)
   local user, groups = M.from_claims(claims)
   if not user then
     return false, "no_user"
   end
-  local held = roles(user, groups)
   ngx.var.auth_user   = user
-  ngx.var.auth_groups = table.concat(held, ",")
+  ngx.var.auth_groups = table.concat(groups, ",")
   ngx.var.auth_method = method
-  if config.require_role and config.role_mapping and #held == 0 then
-    return false, "no_role"
-  end
   return true
 end
 

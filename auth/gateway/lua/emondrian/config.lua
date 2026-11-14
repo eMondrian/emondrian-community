@@ -1,6 +1,6 @@
 -- Settings of the auth gateway, read once per worker from the environment (nginx.conf lists
 -- every variable with an `env` directive, otherwise os.getenv does not see it) and from the
--- gateway config the configurator writes from auth/identity.yml (claims, role mapping).
+-- gateway config the configurator writes from auth/identity.yml (claims).
 
 local cjson = require("cjson.safe")
 
@@ -116,14 +116,10 @@ function M.load()
   M.username_claim = gateway.username_claim or "preferred_username"
   -- Directory groups and groups of external identity providers (external_groups)
   M.groups_claims  = type(gateway.groups_claims) == "table" and gateway.groups_claims or { "groups" }
-  -- eMondrian role -> list of group names or "user:<name>"; nil (JSON null) forwards groups as they are
-  M.role_mapping   = gateway.role_mapping ~= cjson.null and gateway.role_mapping or nil
-  M.forward_groups = gateway.forward_groups == true
-  M.require_role   = gateway.require_role == true
   M.default_idp    = type(gateway.default_idp) == "string" and gateway.default_idp or nil
-  -- open_access in identity.yml: authentication is off, every request is this user ({user, roles})
+  -- open_access in identity.yml: authentication is off, every request is this user ({user, groups})
   local open = gateway.open_access
-  M.open_access = type(open) == "table" and type(open.user) == "string" and type(open.roles) == "table"
+  M.open_access = type(open) == "table" and type(open.user) == "string" and type(open.groups) == "table"
                   and open or nil
   M.idp_aliases    = {}
   for _, alias in ipairs(type(gateway.idp_aliases) == "table" and gateway.idp_aliases or {}) do

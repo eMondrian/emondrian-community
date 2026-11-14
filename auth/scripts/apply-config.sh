@@ -1,5 +1,5 @@
 #!/bin/sh
-# Applies auth/identity.yml: identity sources to Keycloak, claims and role mapping to the auth
+# Applies auth/identity.yml: identity sources to Keycloak, claims and settings to the auth
 # gateway (which reloads without dropping connections or sessions). Run after every change to
 # identity.yml or to the files in the secrets directory it names.
 set -eu

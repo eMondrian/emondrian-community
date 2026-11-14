@@ -10,13 +10,14 @@ Browser, Excel, Power BI, MCP agents
               ▼
      auth_gateway ── checks the login with ──▶ Keycloak ──▶ its own users
               │                                         └─▶ Active Directory / LDAP
-              ▼  user name and eMondrian roles
+              ▼  user name and groups
      eMondrian, OLAP client, editors, dashboards
 ```
 
 The gateway is the only published port. Browsers log in on a login page; Excel, Power BI, scripts
 and MCP agents send the user name and password with every request (HTTP Basic). eMondrian receives
-the user name and the user's **eMondrian roles**, never the password.
+the user name and the user's **groups**, never the password; eMondrian decides what they may
+see and do (see [Roles](#roles)).
 
 ## Switching authentication on and off
 
@@ -48,11 +49,11 @@ Before switching on for other people:
 
 ## Users
 
-`auth/identity.yml` says where users come from and which eMondrian roles they get; setup writes
+`auth/identity.yml` says where users come from; setup writes
 it on the first run, `auth/identity.example.yml` shows every setting. After changing it, run
 `./auth/scripts/apply-config.sh`: it takes effect at once, nobody is logged out. Test a user (no
 password needed) with `./auth/scripts/check-config.sh <user>`: it shows whether the user may log
-in, their groups and the eMondrian roles they get.
+in and the groups eMondrian receives.
 
 The two kinds of users below can be combined, e.g. your Active Directory plus the local `admin`
 for the day the directory is unreachable.
@@ -90,10 +91,18 @@ sources:
   - name: local                             # keep the local admin, or remove this source
     type: local
     …
-roles:
-  mapping:
-    emondrian-admins:  [emondrian-admins, BI-Admins]
-    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins, BI-Users, BI-Admins]
+```
+
+and in `auth/emondrian/mondrian.properties`, the AD groups next to the Keycloak groups (see
+[Roles](#roles)):
+
+```properties
+mondrian.security.schema.write=emondrian-admins,emondrian-editors,BI-Admins
+mondrian.security.schema.read=emondrian-viewers,BI-Users
+mondrian.security.database.manage=emondrian-admins,BI-Admins
+mondrian.security.database.read=emondrian-editors,emondrian-viewers,BI-Users
+mondrian.security.logs.read=emondrian-admins,BI-Admins
+mondrian.security.license.manage=emondrian-admins,BI-Admins
 ```
 
 1. A service account that may read users and groups (`bind_dn`). Put its password into
@@ -108,37 +117,55 @@ roles:
    `auth/secrets/truststore/` (e.g. `corp-ca.pem`).
 3. If the domain controller's name is not in DNS: `LDAP_EXTRA_HOST=dc01.corp.example.com:10.0.0.10`
    in `.env`, then `docker compose up -d`.
-4. `./auth/scripts/apply-config.sh`, then `./auth/scripts/check-config.sh jdoe`.
+4. `./auth/scripts/apply-config.sh`, then `./auth/scripts/check-config.sh jdoe`; after editing
+   `mondrian.properties`, `docker compose up -d --force-recreate eMondrian`.
 
 Users log in with their account name (`jdoe`); `attributes: username_attribute: userPrincipalName`
 switches to `jdoe@corp.example.com`. Nested groups count. A disabled account cannot log in.
 
 ## Roles
 
-eMondrian works with three server roles; `roles.mapping` in `identity.yml` says which groups hold
-them, so nothing else needs changing for your group names:
+Every user who logs in gets in. The gateway passes the user name and the user's groups on to
+eMondrian as they are (`X-Forwarded-User`, `X-Forwarded-Groups`): the groups of Keycloak and of
+your directory, unchanged. What a user may see and do is decided by eMondrian.
 
-| Role | May |
+Every request also carries `X-Forwarded-Access-Token`: the user's Keycloak access token, with
+which a service behind the gateway may call Keycloak as that user (what the user may do there is
+Keycloak's decision), also when one service calls another, e.g. from XML/A to MCP. It is there
+when the user logged in with a user name and password, an OAuth token or a browser session, not
+with a personal access token or with authentication off. On the MCP endpoint (`/emondrian/mcp`)
+the gateway adds `X-Forwarded-Client: mcp`, so that eMondrian can tell an AI agent from a person.
+The gateway overwrites every one of these headers, whatever the client sent.
+
+**Server rights** are in `auth/emondrian/mondrian.properties`, one line per right naming the users
+and groups that hold it. Out of the box they name the three groups setup creates in Keycloak:
+
+| Group | May |
 |---|---|
 | `emondrian-admins` | everything: edit schemas and catalogs, read logs, install the licence key |
 | `emondrian-editors` | edit schemas, read the catalog registry |
-| `emondrian-viewers` | query data, read schemas and the catalog registry |
+| `emondrian-viewers` | read schemas and the catalog registry |
 
-Users holding no role of `roles.mapping` cannot log in (403). The permissions themselves are in
-`auth/emondrian/mondrian.properties`, one line per right naming the roles that hold it
-(`mondrian.security.schema.write=emondrian-admins,emondrian-editors`). The old keys
+Querying data needs no server right. A user in none of these groups (or of the groups you add)
+logs in and queries data, but cannot read or edit schemas, read logs or install a licence key.
+Add your directory's groups to the lines, e.g. `mondrian.security.schema.read=emondrian-viewers,BI-Users`,
+then `docker compose up -d --force-recreate eMondrian`: the server reads the file at startup only.
+A higher right includes the lower (`schema.write` includes `schema.read`). The old keys
 `mondrian.security.role.<role>.*` of server 10.0.86 and earlier are not read any more: with one of
-them left in the file the server denies every right.
+them left in the file the server denies every right. Do not set `-Dmondrian.security.*` options
+on `JAVA_TOOL_OPTIONS` in `.env` (`.env.example` shows them for a server without authentication):
+they override this file.
 
-**Which data a user sees** is set in the schemas. A `<Role>` applies to the users and roles named
-in its `<RoleMember>` elements; add your own role names to `roles.mapping` the same way:
+**Which data a user sees** is set in the schemas. A `<Role>` applies to the users and groups named
+in its `<RoleMember>` elements:
 
 ```xml
 <Role name="Sales EMEA">
     <SchemaGrant access="none">
         <CubeGrant cube="Sales" access="all"/>
     </SchemaGrant>
-    <RoleMember name="Sales EMEA"/>      <!-- roles.mapping: Sales EMEA: [Sales-EMEA, user:jdoe] -->
+    <RoleMember name="Sales-EMEA"/>      <!-- a group of Keycloak or of your directory -->
+    <RoleMember name="jdoe"/>            <!-- or a user -->
 </Role>
 ```
 

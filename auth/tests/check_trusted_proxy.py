@@ -6,7 +6,7 @@ past the proxy do not, and a personal token created through the proxy works with
         python3 auth/tests/check_trusted_proxy.py
 
 PROXY_URL is the proxy in front of the gateway; it asks for Basic credentials (its own users).
-NOROLE_USER (optional) is a proxy user holding no eMondrian role. BASE_URL / CA_FILE / RESOLVE
+NOROLE_USER (optional) is a proxy user in no group; it gets in like any other. BASE_URL / CA_FILE / RESOLVE
 as for browser_login.py address the gateway directly. Exit status 0 when every check passes.
 """
 import base64
@@ -55,7 +55,7 @@ def main():
     c.check("XML/A through the proxy", st == 200 and "<CUBE_NAME>" in body, f"HTTP {st}")
     if NOROLE:
         st, _ = via_proxy("/", user=NOROLE)
-        c.check("a proxy user holding no eMondrian role", st == 403, f"HTTP {st}")
+        c.check("a proxy user in no group gets in", st == 200, f"HTTP {st}")
     forged = {"X-Forwarded-User": USER, "X-Forwarded-Groups": "BI-Users,BI-Admins",
               "Cf-Access-Jwt-Assertion": "eyJhbGciOiJub25lIn0.eyJlbWFpbCI6InhAeCJ9."}
     c.check("identity headers sent past the proxy (browser)", direct("/", forged) == 403, "forged headers refused")

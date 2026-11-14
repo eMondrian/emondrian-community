@@ -5,6 +5,3 @@ trusted_proxy:
   addresses: [{PROXY_IP}]
   secret_file: proxy-secret
   logout_url: /
-roles:
-  mapping:
-    emondrian-viewers: [BI-Users]

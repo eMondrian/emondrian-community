@@ -2,7 +2,7 @@
 # Windows counterpart of authentication.sh.
 #
 #   .\auth\scripts\authentication.ps1 off      everybody gets in without logging in, as the
-#                                              open_access user (default "guest") with its roles
+#                                              open_access user (default "guest") in its groups
 #                                              (default emondrian-admins): a demo or a trial
 #   .\auth\scripts\authentication.ps1 on       logins are required again
 #   .\auth\scripts\authentication.ps1 status   prints on or off
@@ -76,11 +76,11 @@ function Set-OpenAccess([string[]]$Lines, [bool]$Enabled) {
     return $Lines + @(
         "",
         "# Authentication off: everybody who reaches the server gets in without logging in, as the user",
-        "# below with the roles below. Switch with auth/scripts/authentication.ps1 on|off (no restart).",
+        "# below in the groups below. Switch with auth/scripts/authentication.ps1 on|off (no restart).",
         "open_access:",
         "  enabled: true",
         "  user: guest",
-        "  roles: [emondrian-admins]"
+        "  groups: [emondrian-admins]"
     )
 }
 

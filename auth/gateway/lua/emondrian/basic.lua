@@ -37,6 +37,8 @@ local function cache_key(user, password)
 end
 
 -- Returns claims, or nil (wrong credentials), or nil and "unavailable" (the provider failed).
+-- The provider's access token is kept with the claims and left in ngx.ctx.access_token (the
+-- gateway passes it on to the MCP endpoint only).
 function M.authenticate(user, password)
   local key = cache_key(user, password)
   local cache = ngx.shared.basic_auth
@@ -45,7 +47,12 @@ function M.authenticate(user, password)
     return nil
   end
   if cached then
-    return cjson.decode(cached)
+    local entry = cjson.decode(cached) or {}
+    if entry.claims then
+      ngx.ctx.access_token = entry.access_token
+      return entry.claims
+    end
+    return entry  -- cached before access tokens were kept
   end
 
   local provider = config.provider
@@ -105,8 +112,9 @@ function M.authenticate(user, password)
     for _, claim in ipairs(config.groups_claims) do
       cached_claims[claim] = claims[claim]
     end
-    cache:set(key, cjson.encode(cached_claims), ttl)
+    cache:set(key, cjson.encode({ claims = cached_claims, access_token = body.access_token }), ttl)
   end
+  ngx.ctx.access_token = body.access_token
   return claims
 end
 

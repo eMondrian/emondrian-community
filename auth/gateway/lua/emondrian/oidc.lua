@@ -64,12 +64,14 @@ local function login_opts()
 end
 
 -- Browser login. unauth_action "deny" returns nil instead of redirecting (API paths).
--- Returns the ID token claims, or nil and an error.
+-- Returns the ID token claims, or nil and an error. The session's access token (renewed when it
+-- expires) is left in ngx.ctx.access_token.
 function M.session(unauth_action)
   local res, err = openidc.authenticate(unauth_action and opts or login_opts(), nil, unauth_action)
   if err then
     return nil, err
   end
+  ngx.ctx.access_token = res and res.access_token
   return res and res.id_token
 end
 

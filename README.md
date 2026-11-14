@@ -494,10 +494,11 @@ All traffic goes through an authentication gateway on `EMONDRIAN_PORT`, with
 Keycloak checking user names and passwords: browsers log in on a login page,
 Excel, Power BI, scripts and MCP agents send the user name and password (HTTP
 Basic). Users come from Keycloak itself, from your Active Directory or another
-LDAP directory, or both; their groups give them one of three roles —
-`emondrian-admins` (everything), `emondrian-editors` (edit schemas) and
-`emondrian-viewers` (query and read). Roles in the schemas decide which data each
-user sees.
+LDAP directory, or both. Every user who logs in gets in; eMondrian receives the
+user name and groups and decides the rest: server rights per group in
+`auth/emondrian/mondrian.properties` (out of the box `emondrian-admins` may do
+everything, `emondrian-editors` edit schemas, `emondrian-viewers` read them), and
+roles in the schemas decide which data each user sees.
 
 **After setup, authentication is off**: anyone who can reach the server is the
 user `guest` with all rights — they can query data, edit schemas, read logs and,

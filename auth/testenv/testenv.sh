@@ -169,12 +169,12 @@ record() {  # profile command...: runs a test, keeps its OK / FAIL lines
         echo "$profile | FAIL | $(basename "${@: -1}") stopped | $(echo "$out" | tail -1)" | tee -a "$RESULTS"
     fi
 }
-expect_check() {  # profile user expectation(allowed:<roles>|refused)
+expect_check() {  # profile user expectation(<a group forwarded>|refused)
     local out; out=$(AUTH_IDENTITY_FILE=$STATE/identity.yml AUTH_SECRETS_DIR=$SECRETS ./auth/scripts/check-config.sh "$2" 2>&1 || true)
     if [ "$3" = refused ]; then
         echo "$out" | grep -q "FAIL | user $2 |" && line="OK   | check-config: $2 may not log in |" || line="FAIL | check-config: $2 should be refused |"
     else
-        echo "$out" | grep -q "X-Forwarded-Groups: $3" && line="OK   | check-config: $2 gets $3 |" \
+        echo "$out" | grep -Eq "X-Forwarded-Groups: (.*,)?$3(,|$)" && line="OK   | check-config: $2 gets $3 |" \
             || line="FAIL | check-config: $2 should get $3 | $(echo "$out" | grep -E 'forwarded|user' | tail -1)"
     fi
     echo "$1 | $line" | tee -a "$RESULTS"
@@ -216,12 +216,13 @@ test_profile() {
         ldap-ad)
             record "$p" env TEST_USER=alice TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/check_auth.py
             record "$p" env TEST_USER=alice TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py
-            expect_check "$p" nina emondrian-viewers      # nested group
-            expect_check "$p" bob emondrian-admins
-            expect_check "$p" erin emondrian-editors
-            expect_check "$p" carol refused               # in no allowed group
+            expect_check "$p" nina BI-Users               # nested group
+            expect_check "$p" bob BI-Admins
+            expect_check "$p" erin BI-Modelers
+            expect_check "$p" carol refused               # in no allowed group of the source
             expect_check "$p" dave refused                # disabled
-            logs_check "$p" bob 200
+            # Server rights name groups in auth/emondrian/mondrian.properties; the AD groups are not
+            # there, so an AD user logs in but may not read the logs (emondrian-admins may: local)
             logs_check "$p" alice 403 ;;
         open)
             record "$p" python3 -I auth/tests/check_open.py
@@ -238,12 +239,13 @@ test_profile() {
             record "$p" env TEST_USER=alice TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py
             record "$p" env TEST_USER=pat TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py partner-oidc
             record "$p" env TEST_USER=pat TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py partner-saml
-            record "$p" env TEST_USER=quinn TEST_PASSWORD_FILE="$pw" EXPECT_DENIED=1 python3 -I auth/tests/browser_login.py partner-oidc
+            # A partner user in no group gets in too; eMondrian decides what they see
+            record "$p" env TEST_USER=quinn TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py partner-oidc
             record "$p" env TEST_USER=pat TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/check_tokens.py partner-oidc
             record "$p" env TEST_USER=alice TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/check_mcp_oauth.py ;;
         oidc-direct)
             record "$p" env TEST_USER=pat TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py
-            record "$p" env TEST_USER=quinn TEST_PASSWORD_FILE="$pw" EXPECT_DENIED=1 python3 -I auth/tests/browser_login.py
+            record "$p" env TEST_USER=quinn TEST_PASSWORD_FILE="$pw" python3 -I auth/tests/browser_login.py
             record "$p" env TEST_USER=pat TEST_PASSWORD_FILE="$pw" CLIENT_ID=emondrian-direct \
                 CLIENT_SECRET_FILE="$SECRETS/partner-direct-secret" \
                 TOKEN_URL="http://$TESTENV_HOST:$TESTENV_IDP_PORT/realms/partner/protocol/openid-connect/token" \

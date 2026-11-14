@@ -59,15 +59,26 @@ local function challenge(bearer_error)
   return ngx.exit(ngx.HTTP_UNAUTHORIZED)
 end
 
--- open_access: authentication is off. Every request is the guest of identity.yml with its roles,
+-- open_access: authentication is off. Every request is the guest of identity.yml with its groups,
 -- whatever credentials it carries (Excel may still send a saved password); they are dropped, and
 -- client-sent X-Forwarded-* headers are overwritten as always.
 local function open_access()
   local guest = config.open_access
   ngx.var.auth_user   = identity.one_line(guest.user)
-  ngx.var.auth_groups = table.concat(guest.roles, ",")
+  ngx.var.auth_groups = table.concat(guest.groups, ",")
   ngx.var.auth_method = "open"
   ngx.req.clear_header("Authorization")
+end
+
+-- X-Forwarded-Access-Token on every endpoint (XML/A, the API, MCP, the web tools): the user's
+-- access token of the identity provider (Keycloak, or the provider of oidc-direct), so that a
+-- service behind the gateway can call that provider's APIs as the user, also when one service
+-- calls another (XML/A to MCP). There is none for personal tokens, Kerberos, the SSO proxy and
+-- open_access.
+local function forward_access_token()
+  if ngx.ctx.access_token then
+    ngx.var.auth_access_token = ngx.ctx.access_token
+  end
 end
 
 local function forbidden(message)
@@ -96,6 +107,8 @@ local header_methods = {
     local claims, err = oidc.verify_access_token(token)
     if not claims then
       ngx.log(ngx.NOTICE, "Bearer token rejected: ", err)
+    else
+      ngx.ctx.access_token = token
     end
     return claims, err
   end,
@@ -157,17 +170,14 @@ function M.api()
     claims = oidc.session("deny")
   end
 
-  local ok, reason = identity.set(claims, method)
-  if not ok then
-    if reason == "no_role" then
-      return forbidden("You are logged in as " .. ngx.var.auth_user .. " but hold no eMondrian role.")
-    end
+  if not identity.set(claims, method) then
     if method == "bearer" and claims then
       err = "the token has no user name (" .. config.username_claim .. ")"
     end
     return challenge(method == "bearer" and err or nil)
   end
-  -- Credentials end here; eMondrian gets the identity headers only
+  -- Credentials end here; eMondrian gets the identity headers only, and the access token
+  forward_access_token()
   ngx.req.clear_header("Authorization")
 end
 
@@ -183,11 +193,8 @@ local function web_through_proxy()
       or "The sign-in proxy did not say who you are.")
   end
   proxy.clear_headers()
-  local ok, why = identity.set(claims, "proxy")
-  if not ok then
-    return forbidden(why == "no_role"
-      and ("You are logged in as " .. ngx.var.auth_user .. " but hold no eMondrian role.")
-      or "The sign-in proxy did not say who you are.")
+  if not identity.set(claims, "proxy") then
+    return forbidden("The sign-in proxy did not say who you are.")
   end
 end
 
@@ -213,14 +220,10 @@ function M.web()
     ngx.say("Login failed, see the auth gateway log")
     return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
   end
-  local ok, reason = identity.set(claims, "session")
-  if not ok then
-    if reason == "no_role" then
-      return forbidden("You are logged in as " .. ngx.var.auth_user ..
-                       " but hold no eMondrian role. Ask your administrator for access, or log out: /logout")
-    end
+  if not identity.set(claims, "session") then
     return forbidden("The identity provider sent no user name.")
   end
+  forward_access_token()
 end
 
 return M

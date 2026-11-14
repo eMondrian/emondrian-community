@@ -7,7 +7,3 @@ sources:
       - username: testenv-admin
         groups: [emondrian-admins]
         initial_password_file: local-initial-password
-roles:
-  mapping:
-    emondrian-admins:  [emondrian-admins]
-    emondrian-viewers: [emondrian-viewers, emondrian-admins]

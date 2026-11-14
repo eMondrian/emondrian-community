@@ -98,7 +98,7 @@ services:
         condition: service_healthy
 
   # Applies auth/identity.yml to Keycloak (identity sources) and writes the gateway's config
-  # (claims, role mapping), then exits. auth/scripts/apply-config.sh runs it again after changes.
+  # (claims, settings), then exits. auth/scripts/apply-config.sh runs it again after changes.
   auth-config:
     build: ./auth/configurator
     image: emondrian-auth-config:local
@@ -188,7 +188,7 @@ services:
     volumes:
       # tls.crt (certificate followed by its chain) and tls.key turn HTTPS on
       - ./auth/secrets/tls:/etc/nginx/tls:ro
-      # gateway.json from auth-config: claims, role mapping, mode
+      # gateway.json from auth-config: claims, mode, settings
       - auth_generated:/etc/emondrian-auth:ro
       # CAs the gateway trusts when it talks to an identity provider itself (oidc-direct)
       - ./auth/secrets/truststore:/etc/nginx/truststore:ro

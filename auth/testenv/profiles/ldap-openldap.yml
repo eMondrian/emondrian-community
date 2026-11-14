@@ -12,6 +12,3 @@ sources:
     attributes:
       group_object_classes: groupOfUniqueNames
       membership_attribute: uniqueMember
-roles:
-  mapping:
-    emondrian-viewers: [bi-users]

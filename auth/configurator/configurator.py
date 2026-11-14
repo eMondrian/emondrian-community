@@ -2,7 +2,7 @@
 
     configurator.py apply          make Keycloak match identity.yml, write the gateway's config
     configurator.py check [USER]   test every source; with USER, look the user up and show the
-                                   groups and eMondrian roles the gateway would forward
+                                   groups the gateway would forward
 
 `apply` is idempotent: it creates or updates what identity.yml describes and removes LDAP
 sources and identity providers (with their mappers) that identity.yml no longer lists.
@@ -748,8 +748,8 @@ def tokens_settings(identity):
 
 
 def open_access_settings(identity):
-    """open_access in identity.yml: everybody gets in without logging in, as one guest user with
-    the roles listed (a demo or an evaluation). Sources stay configured, so switching it off
+    """open_access in identity.yml: everybody gets in without logging in, as one guest user in
+    the groups listed (a demo or an evaluation; `roles` is the former name of `groups`). Sources stay configured, so switching it off
     again (enabled: false, apply-config.sh) needs nothing else. None when off."""
     section = identity.get("open_access")
     if section in (None, False):
@@ -757,8 +757,8 @@ def open_access_settings(identity):
     if section is True:
         section = {"enabled": True}
     if not isinstance(section, dict):
-        raise ConfigError("identity.yml: open_access must be a section (enabled, user, roles)")
-    unknown = set(section) - {"enabled", "user", "roles"}
+        raise ConfigError("identity.yml: open_access must be a section (enabled, user, groups)")
+    unknown = set(section) - {"enabled", "user", "groups", "roles"}
     if unknown:
         raise ConfigError(f"identity.yml: unknown open_access setting(s): {', '.join(sorted(unknown))}")
     if not section.get("enabled", True):
@@ -766,10 +766,10 @@ def open_access_settings(identity):
     user = str(section.get("user") or "guest")
     if not all(c.isalnum() or c in "._@-" for c in user):
         raise ConfigError("identity.yml: open_access.user: letters, digits and . _ @ - only")
-    roles = section.get("roles", ["emondrian-admins"])
-    if not isinstance(roles, list) or not roles or not all(isinstance(r, str) and r and "," not in r for r in roles):
-        raise ConfigError("identity.yml: open_access.roles must list eMondrian roles, e.g. [emondrian-admins]")
-    return {"user": user, "roles": roles}
+    groups = section.get("groups", section.get("roles", ["emondrian-admins"]))
+    if not isinstance(groups, list) or not groups or not all(isinstance(g, str) and g and "," not in g for g in groups):
+        raise ConfigError("identity.yml: open_access.groups must list groups, e.g. [emondrian-admins]")
+    return {"user": user, "groups": groups}
 
 
 def write_tokens_settings(identity):
@@ -1053,12 +1053,6 @@ def proxy_config(identity):
 
 def gateway_config(identity):
     claims = identity.get("claims") or {}
-    roles = identity.get("roles") or {}
-    mapping = roles.get("mapping")
-    if mapping is not None:
-        if not isinstance(mapping, dict) or not all(isinstance(v, list) for v in mapping.values()):
-            raise ConfigError("identity.yml: roles.mapping must map role names to lists of groups/users")
-        mapping = {role: [str(m) for m in members] for role, members in mapping.items()}
     direct = identity["mode"] in ("oidc-direct", "trusted-proxy")
     if identity["mode"] == "trusted-proxy":
         # trusted_proxy.lua hands over {user=…, groups={…}}, whatever headers or claims it read
@@ -1088,16 +1082,11 @@ def gateway_config(identity):
         "username_claim": username_claim,
         # Directory groups (LDAP group mapper) and groups sent by external identity providers
         "groups_claims": groups_claims,
-        "role_mapping": mapping,
-        # With a mapping, eMondrian gets the mapped roles only, unless forward_groups is true
-        "forward_groups": bool(roles.get("forward_groups", mapping is None)),
-        # With a mapping, a user holding no eMondrian role is refused (403)
-        "require_role": bool(roles.get("require_role", mapping is not None)),
         # Login straight at this identity provider instead of Keycloak's login page
         "default_idp": (identity.get("login") or {}).get("default_source"),
         # Sources a browser may pick with ?idp=<name>
         "idp_aliases": [] if direct else [s["name"] for s in sources_of(identity, "oidc", "saml")],
-        # Authentication switched off: every request is this user with these roles
+        # Authentication switched off: every request is this user in these groups
         "open_access": open_access_settings(identity),
     }
 
@@ -1120,22 +1109,13 @@ def write_gateway_config(identity, oidc=None, proxy=None):
     if config["open_access"]:
         guest = config["open_access"]
         log(f"WARNING: authentication is OFF (open_access): everybody who reaches the server gets in "
-            f"as {guest['user']} with {', '.join(guest['roles'])}, without logging in")
-    log(f"gateway config written: mode {config['mode']}, roles "
-        f"{'mapped (' + str(len(config['role_mapping'])) + ' roles)' if config['role_mapping'] is not None else 'not mapped, groups forwarded as they are'}")
+            f"as {guest['user']} in {', '.join(guest['groups'])}, without logging in")
+    if identity.get("roles") is not None:
+        log("WARNING: identity.yml: the roles section (roles.mapping) is not used any more and is "
+            "ignored: groups go to eMondrian as they are; server rights are in "
+            "auth/emondrian/mondrian.properties, data roles in the schemas. Remove the section.")
+    log(f"gateway config written: mode {config['mode']}, groups forwarded as they are")
     return config
-
-
-def map_roles(config, user, groups):
-    """The same mapping the gateway applies (lua/emondrian/identity.lua), for `check`."""
-    if config["role_mapping"] is None:
-        return list(groups)
-    lower = {g.lower() for g in groups}
-    roles = sorted(role for role, members in config["role_mapping"].items()
-                   if any(m.lower() in lower or m.lower() == f"user:{user}".lower() for m in members))
-    if config["forward_groups"]:
-        roles += [g for g in groups if g not in roles]
-    return roles
 
 
 # --- commands ----------------------------------------------------------------------------------
@@ -1275,12 +1255,8 @@ def check(username=None):
                           "?" if user.get("federationLink") else next((x["name"] for x in sources_of(identity, "local")), "Keycloak"))
             groups = [g["name"] for g in kc.call("GET", f"/users/{user['id']}/groups")]
             log(f"OK   | user {username} | source {source}, enabled {user['enabled']}, groups {groups}")
-            roles = map_roles(config, user["username"], groups)
             log(f"     | forwarded to eMondrian | X-Forwarded-User: {user['username']}  "
-                f"X-Forwarded-Groups: {','.join(roles) or '(none)'}")
-            if not roles and config["require_role"]:
-                log(f"FAIL | user {username} | holds no eMondrian role and would be refused (roles.mapping)")
-                failures += 1
+                f"X-Forwarded-Groups: {','.join(groups) or '(none)'}")
     if sources_of(identity, "oidc", "saml"):
         log("     | users of oidc/saml sources can only be checked by logging in "
             f"({PUBLIC_URL}/?idp=<source>); their groups arrive in the {EXTERNAL_GROUPS} claim")

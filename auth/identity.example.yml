@@ -1,4 +1,4 @@
-# Who may log in to eMondrian and which eMondrian roles they get. See auth/README.md.
+# Who may log in to eMondrian and where their groups come from. See auth/README.md.
 #
 # setup.sh / windows-setup.ps1 write auth/identity.yml on the first run (users kept in Keycloak,
 # authentication off). Adapt it from the examples below, then apply it with
@@ -39,29 +39,18 @@ sources:
   #  #  username_attribute: userPrincipalName
   #  # The LDAPS certificate must be signed by a CA in auth/secrets/truststore/ (PEM files).
 
-# eMondrian roles. The server permissions (auth/emondrian/mondrian.properties) and the schemas
-# (<RoleMember name="..."/>) name eMondrian roles; this table says which groups (or users, as
-# user:<name>) hold each one. Names are compared case-insensitively.
-roles:
-  mapping:
-    emondrian-admins:  [emondrian-admins]                                       # everything
-    emondrian-editors: [emondrian-editors, emondrian-admins]                    # edit schemas
-    emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins] # read
-    # With Active Directory, name its groups, e.g.
-    #emondrian-admins:  [emondrian-admins, BI-Admins]
-    #emondrian-viewers: [emondrian-viewers, emondrian-editors, emondrian-admins, BI-Users, BI-Admins]
-    # Data roles used in your schemas, e.g.:
-    #Sales EMEA: [Sales-EMEA, user:jdoe]
-  # Users holding none of the roles above are refused (403); false lets them in with no role
-  #require_role: true
+# Every user who logs in gets in. Groups go to eMondrian as they are (X-Forwarded-Groups), and
+# eMondrian decides what each user may see and do: server rights per group in
+# auth/emondrian/mondrian.properties, data roles per group or user in the schemas
+# (<RoleMember name="Sales-EMEA"/>).
 
 # Authentication off: everybody who reaches the server gets in without logging in (browser,
-# Excel, Power BI, MCP), as this one user with these roles. The sources above stay configured.
+# Excel, Power BI, MCP), as this one user in these groups. The sources above stay configured.
 # Switch with auth/scripts/authentication.sh on|off (Windows: authentication.ps1), no restart.
 open_access:
   enabled: true
   user: guest
-  roles: [emondrian-admins]
+  groups: [emondrian-admins]
 
 # Sessions, lockout, Basic cache. Durations: 45s, 30m, 10h, 2d. Defaults shown.
 #policy:
