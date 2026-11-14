@@ -110,14 +110,19 @@ if [[ "$PUBLIC_URL" == http://* ]]; then
 elif [ -f auth/secrets/tls/tls.crt ] && [ -f auth/secrets/tls/tls.key ]; then
     echo "auth/secrets/tls/ already holds a certificate: kept"
 else
-    SAN="DNS:$HOST"
-    [[ "$HOST" =~ ^[0-9.]+$ ]] && SAN="IP:$HOST"
-    [ "$HOST" != "localhost" ] && SAN="$SAN,DNS:localhost"
-    openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=$HOST" \
-        -addext "subjectAltName=$SAN" -addext "extendedKeyUsage=serverAuth" \
-        -keyout auth/secrets/tls/tls.key -out auth/secrets/tls/tls.crt 2>/dev/null
-    chmod 600 auth/secrets/tls/tls.key
-    echo "self-signed certificate for $HOST created (browsers warn until it is replaced by one of your CA)"
+    # Self-signed certificate generation is switched off: HTTPS needs a certificate of your own CA
+    # in auth/secrets/tls/ (tls.crt with its chain, tls.key). To generate a self-signed one again,
+    # uncomment the lines below.
+    # SAN="DNS:$HOST"
+    # [[ "$HOST" =~ ^[0-9.]+$ ]] && SAN="IP:$HOST"
+    # [ "$HOST" != "localhost" ] && SAN="$SAN,DNS:localhost"
+    # openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=$HOST" \
+    #     -addext "subjectAltName=$SAN" -addext "extendedKeyUsage=serverAuth" \
+    #     -keyout auth/secrets/tls/tls.key -out auth/secrets/tls/tls.crt 2>/dev/null
+    # chmod 600 auth/secrets/tls/tls.key
+    # echo "self-signed certificate for $HOST created (browsers warn until it is replaced by one of your CA)"
+    echo "no certificate in auth/secrets/tls/: put tls.crt and tls.key there for HTTPS ($PUBLIC_URL);"
+    echo "until then the gateway serves plain HTTP only"
 fi
 
 # --- identity.yml -----------------------------------------------------------------------------
