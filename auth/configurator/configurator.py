@@ -48,6 +48,16 @@ TRUSTSTORE_DIR = os.environ.get("TRUSTSTORE_DIR", "/truststore")
 # User attribute holding the groups an external identity provider sends; the `emondrian` client
 # scope puts it into tokens as the claim of the same name
 EXTERNAL_GROUPS = "external_groups"
+# The source (identity provider alias) that set external_groups at the user's last login: the
+# gateway forwards those groups as /<source>/<group>, so a provider can never name a Keycloak group
+EXTERNAL_SOURCE = "external_groups_source"
+# First-login flows of external providers: no user is ever created, every user must exist in
+# Keycloak (or the directory) already. link_by_email: true on a trusted source links to the
+# existing user with the same e-mail or user name; otherwise only accounts an administrator linked.
+FLOW_LINK_EXISTING = "emondrian link existing user"
+FLOW_DENY_NEW = "emondrian existing links only"
+DENY_MESSAGE = ("You have no account in eMondrian yet. Ask its administrator to create one for you"
+                " (with your e-mail address), then sign in again.")
 
 
 class ConfigError(Exception):
@@ -413,9 +423,8 @@ def import_config(kc, source, provider_id, url):
 def idp_common(source, config):
     config.update({
         "syncMode": "FORCE",
-        # Transient user: nothing about the user is stored beyond their session (experimental
-        # in Keycloak 26; store_users: true keeps a local copy instead)
-        "doNotStoreUsers": str(not source.get("store_users", False)).lower(),
+        # Every user must exist in Keycloak: never a transient user (FLOW_* for the first login)
+        "doNotStoreUsers": "false",
         "hideOnLoginPage": str(source.get("hidden", False)).lower(),
         "guiOrder": str(source.get("priority", 0)),
     })
@@ -424,12 +433,44 @@ def idp_common(source, config):
         "displayName": source.get("display_name", source["name"]),
         "providerId": source["type"],
         "enabled": bool(source.get("enabled", True)),
-        "trustEmail": False,
+        # A trusted source's e-mail is taken as verified, so that it can link to the existing user
+        "trustEmail": bool(source.get("link_by_email", False)),
         "storeToken": False,
         "linkOnly": False,
-        "firstBrokerLoginFlowAlias": "first broker login",
+        "firstBrokerLoginFlowAlias": FLOW_LINK_EXISTING if source.get("link_by_email", False) else FLOW_DENY_NEW,
         "config": {k: str(v) for k, v in config.items() if v is not None},
     }
+
+
+def source_mapper(source):
+    """Sets external_groups_source to this source's name at every login through it."""
+    return {"name": "groups source", "identityProviderMapper": "hardcoded-attribute-idp-mapper",
+            "config": {"attribute": EXTERNAL_SOURCE, "attribute.value": source["name"], "syncMode": "FORCE"}}
+
+
+def ensure_first_login_flows(kc):
+    """The two first-login flows of external providers (FLOW_*): neither creates a user."""
+    flows = {f["alias"]: f for f in kc.call("GET", "/authentication/flows")}
+    for alias, providers in ((FLOW_LINK_EXISTING, ["idp-detect-existing-broker-user", "idp-auto-link"]),
+                             (FLOW_DENY_NEW, ["deny-access-authenticator"])):
+        if alias not in flows:
+            kc.call("POST", "/authentication/flows", {"alias": alias, "providerId": "basic-flow", "topLevel": True,
+                                                      "builtIn": False,
+                                                      "description": "eMondrian: no new users at a provider's first login"})
+            log(f"authentication flow '{alias}' created")
+        path = f"/authentication/flows/{urllib.parse.quote(alias)}/executions"
+        current = [e.get("providerId") for e in kc.call("GET", path)]
+        if current != providers:
+            for e in kc.call("GET", path):
+                kc.call("DELETE", f"/authentication/executions/{e['id']}")
+            for provider in providers:
+                kc.call("POST", path + "/execution", {"provider": provider})
+        for e in kc.call("GET", path):
+            if e.get("requirement") != "REQUIRED":
+                kc.call("PUT", path, dict(e, requirement="REQUIRED"))
+            if e.get("providerId") == "deny-access-authenticator" and not e.get("authenticationConfig"):
+                kc.call("POST", f"/authentication/executions/{e['id']}/config", {
+                    "alias": "emondrian no account", "config": {"denyErrorMessage": DENY_MESSAGE}})
 
 
 def oidc_provider(kc, source):
@@ -459,6 +500,7 @@ def oidc_provider(kc, source):
     if groups_claim:
         mappers.append({"name": "groups", "identityProviderMapper": "oidc-user-attribute-idp-mapper",
                         "config": {"claim": groups_claim, "user.attribute": EXTERNAL_GROUPS, "syncMode": "FORCE"}})
+    mappers.append(source_mapper(source))
     return idp_common(source, config), mappers
 
 
@@ -493,12 +535,18 @@ def saml_provider(kc, source):
         mappers.append({"name": "groups", "identityProviderMapper": "saml-user-attribute-idp-mapper",
                         "config": {"attribute.name": groups_attribute, "user.attribute": EXTERNAL_GROUPS,
                                    "syncMode": "FORCE"}})
+    mappers.append(source_mapper(source))
     return idp_common(source, config), mappers
 
 
 def apply_identity_providers(kc, identity):
     desired = []
+    if sources_of(identity, "oidc", "saml"):
+        ensure_first_login_flows(kc)
     for source in sources_of(identity, "oidc", "saml"):
+        if "store_users" in source:
+            log(f"WARNING source {source['name']}: store_users is not used any more: every user of an external"
+                " provider must exist in Keycloak (link_by_email: true links by e-mail on a trusted source)")
         build = oidc_provider if source["type"] == "oidc" else saml_provider
         desired.append((source, *build(kc, source)))
 
@@ -543,28 +591,37 @@ def ensure_user_profile(kc):
             "permissions": {"view": ["admin"], "edit": ["admin"]},
         })
         changed = True
+    if not any(a["name"] == EXTERNAL_SOURCE for a in profile["attributes"]):
+        profile["attributes"].append({
+            "name": EXTERNAL_SOURCE, "displayName": "Source of the external groups",
+            "permissions": {"view": ["admin"], "edit": ["admin"]},
+        })
+        changed = True
     if changed:
         kc.call("PUT", "/users/profile", profile)
         log("user profile: e-mail and names optional, external_groups admin-only")
 
 
 def ensure_external_groups_claim(kc):
-    """Puts external_groups into the tokens of every client, through the `emondrian` scope."""
+    """Puts external_groups and external_groups_source into the tokens of every client, through
+    the `emondrian` scope."""
     scope = next((s for s in kc.call("GET", "/client-scopes") if s["name"] == "emondrian"), None)
     if scope is None:
         raise ConfigError("client scope 'emondrian' missing; run auth/scripts/reimport-realm.sh")
-    mapper = {"name": "external groups", "protocol": "openid-connect",
-              "protocolMapper": "oidc-usermodel-attribute-mapper", "config": {
-                  "user.attribute": EXTERNAL_GROUPS, "claim.name": EXTERNAL_GROUPS, "multivalued": "true",
-                  "aggregate.attrs": "false", "jsonType.label": "String", "id.token.claim": "true",
-                  "access.token.claim": "true", "userinfo.token.claim": "true",
-                  "introspection.token.claim": "true"}}
     path = f"/client-scopes/{scope['id']}/protocol-mappers/models"
-    current = next((m for m in kc.call("GET", path) if m["name"] == mapper["name"]), None)
-    if current is None:
-        kc.call("POST", path, mapper)
-    elif current.get("config") != mapper["config"]:
-        kc.call("PUT", f"{path}/{current['id']}", dict(mapper, id=current["id"]))
+    for name, attribute, multivalued in (("external groups", EXTERNAL_GROUPS, True),
+                                         ("external groups source", EXTERNAL_SOURCE, False)):
+        mapper = {"name": name, "protocol": "openid-connect",
+                  "protocolMapper": "oidc-usermodel-attribute-mapper", "config": {
+                      "user.attribute": attribute, "claim.name": attribute, "multivalued": str(multivalued).lower(),
+                      "aggregate.attrs": "false", "jsonType.label": "String", "id.token.claim": "true",
+                      "access.token.claim": "true", "userinfo.token.claim": "true",
+                      "introspection.token.claim": "true"}}
+        current = next((m for m in kc.call("GET", path) if m["name"] == mapper["name"]), None)
+        if current is None:
+            kc.call("POST", path, mapper)
+        elif current.get("config") != mapper["config"]:
+            kc.call("PUT", f"{path}/{current['id']}", dict(mapper, id=current["id"]))
 
 
 def ensure_group_paths(kc):
@@ -641,6 +698,81 @@ def warn_plain_group_names(kc):
     if found:
         log(f"{found} entr{'y names' if found == 1 else 'ies name'} a group by its plain name: groups are forwarded"
             " by full path only (auth/README.md, Roles)")
+
+
+ADMINS_GROUP = "emondrian-admins"
+REALM_ADMIN_ROLE = "realm-admin"
+
+
+def ensure_admins_realm_admin(kc):
+    """Members of /emondrian-admins are administrators of this realm in Keycloak: the group holds
+    the realm-management client role realm-admin, which the MCP tools for users, groups, the
+    security file and the open-access switch check (they act in Keycloak as the caller).
+
+    Keycloak gives a group's roles to the members of its subgroups as well, while eMondrian counts
+    only the group's own members (groups are forwarded by full path, no inheritance). A member of
+    /emondrian-admins/x would be a Keycloak administrator and could add itself to /emondrian-admins.
+    So while the group has subgroups the role is not granted, and a grant already there is taken
+    back, with an ERROR naming them; the rest of the apply goes on. That cannot lock anybody out:
+    Keycloak's own administrator (KEYCLOAK_ADMIN_USER/PASSWORD in .env, realm master) is untouched,
+    and eMondrian's rights do not depend on Keycloak roles. Once the subgroups are gone, the next
+    apply grants it again."""
+    groups = [g for g in kc.call("GET", "/groups", query={"briefRepresentation": "true", "max": "1000"})
+              if g["name"] == ADMINS_GROUP]
+    if not groups:
+        log(f"group /{ADMINS_GROUP} not found: no Keycloak administrators granted through it")
+        return
+    group = groups[0]
+    management = kc.call("GET", "/clients", query={"clientId": "realm-management"})[0]["id"]
+    path = f"/groups/{group['id']}/role-mappings/clients/{management}"
+    granted = [r for r in kc.call("GET", path) if r["name"] == REALM_ADMIN_ROLE]
+    children = kc.call("GET", f"/groups/{group['id']}/children", query={"briefRepresentation": "true", "max": "1000"})
+    if children:
+        names = ", ".join(c.get("path") or f"/{ADMINS_GROUP}/{c['name']}" for c in children)
+        if granted:
+            kc.call("DELETE", path, granted)
+        log(f"ERROR group /{ADMINS_GROUP} has subgroups ({names}): Keycloak would make their members"
+            f" administrators of the realm, so {REALM_ADMIN_ROLE} is {'taken back from' if granted else 'not given to'}"
+            f" /{ADMINS_GROUP}. Move those groups elsewhere and run apply-config.sh again.")
+        return
+    if granted:
+        return
+    role = kc.call("GET", f"/clients/{management}/roles/{REALM_ADMIN_ROLE}")
+    kc.call("POST", path, [role])
+    log(f"group /{ADMINS_GROUP}: realm-management role {REALM_ADMIN_ROLE} granted (Keycloak administrators"
+        " of this realm)")
+
+
+OWNER_CHECK_CLIENT = "emondrian-gateway-lookup"
+
+
+def ensure_owner_check_client(kc):
+    """Service account the gateway uses to check the owner of a personal access token at each use
+    (cached at most 30 s): that the user still exists and is enabled, and its current groups. Only
+    realm-management's view-users. Returns its credentials for gateway.json (root-only, never in git
+    or a log)."""
+    client = {"clientId": OWNER_CHECK_CLIENT, "name": "eMondrian gateway user lookup",
+              "description": "Service account of the auth gateway: checks the owner of a personal token",
+              "enabled": True, "publicClient": False, "protocol": "openid-connect",
+              "standardFlowEnabled": False, "directAccessGrantsEnabled": False,
+              "implicitFlowEnabled": False, "serviceAccountsEnabled": True}
+    existing = kc.call("GET", "/clients", query={"clientId": OWNER_CHECK_CLIENT})
+    if not existing:
+        kc.call("POST", "/clients", client)
+        existing = kc.call("GET", "/clients", query={"clientId": OWNER_CHECK_CLIENT})
+        log(f"client {OWNER_CHECK_CLIENT} created: the gateway checks the owners of personal tokens with it")
+    client_uuid = existing[0]["id"]
+    account = kc.call("GET", f"/clients/{client_uuid}/service-account-user")
+    management = kc.call("GET", "/clients", query={"clientId": "realm-management"})[0]["id"]
+    path = f"/users/{account['id']}/role-mappings/clients/{management}"
+    roles = kc.call("GET", path)
+    extra = [r for r in roles if r["name"] != "view-users"]
+    if extra:
+        kc.call("DELETE", path, extra)
+    if not any(r["name"] == "view-users" for r in roles):
+        kc.call("POST", path, [kc.call("GET", f"/clients/{management}/roles/view-users")])
+    secret = kc.call("GET", f"/clients/{client_uuid}/client-secret")["value"]
+    return {"client_id": OWNER_CHECK_CLIENT, "client_secret": secret}
 
 
 def ensure_offline_access_scope(kc):
@@ -795,6 +927,9 @@ def apply_realm_policy(kc, policy):
     if lockout:
         settings.update({"failureFactor": lockout["failures"], "waitIncrementSeconds": lockout["wait"],
                          "maxFailureWaitSeconds": lockout["max_wait"], "permanentLockout": False})
+    if policy["basic_cache"] > policy["token_lifetime"]:
+        log(f"policy: basic_cache {policy['basic_cache']}s is longer than token_lifetime {policy['token_lifetime']}s;"
+            " a Basic login is reused only until 30 s before its own token expires, never longer")
     realm = kc.call("GET", "")
     if any(realm.get(k) != v for k, v in settings.items()):
         kc.call("PUT", "", settings)
@@ -1172,8 +1307,10 @@ def gateway_config(identity):
     }
 
 
-def write_gateway_config(identity, oidc=None, proxy=None):
+def write_gateway_config(identity, oidc=None, proxy=None, owner_check=None):
     config = gateway_config(identity)
+    if owner_check:
+        config["owner_check"] = owner_check
     if oidc:
         config["oidc"] = oidc
     if proxy:
@@ -1237,13 +1374,15 @@ def apply():
     ensure_gateway_client_urls(kc)
     apply_ldap_sources(kc, identity, realm["id"])
     apply_local_users(kc, identity)
+    ensure_admins_realm_admin(kc)
     apply_password_policy(kc, policy_settings(identity))
     apply_identity_providers(kc, identity)
     apply_mcp(kc, mcp_settings(identity))
     apply_kerberos(kc, identity)
     warn_plain_group_names(kc)
     apply_kerberos_login(kc, identity)
-    write_gateway_config(identity)
+    owner_check = ensure_owner_check_client(kc)
+    write_gateway_config(identity, owner_check=owner_check)
     log("identity.yml applied")
 
 

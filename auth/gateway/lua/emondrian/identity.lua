@@ -53,6 +53,37 @@ end
 
 M.group_names = group_names
 
+-- Groups of an external identity provider (the claim external_groups, set by Keycloak's provider
+-- mappers) are forwarded under the provider's own name, /<source>/<group>, so that a provider can
+-- never name a Keycloak group or a server group (a provider group "emondrian-admins" is
+-- /entra/emondrian-admins, not /emondrian-admins). A provider's group name is one path segment:
+-- "/", "," and "%" in it are written %2F, %2C and %25.
+local EXTERNAL = "external_groups"
+local EXTERNAL_SOURCE = "external_groups_source"
+
+local function segment(s)
+  return (one_line(s):gsub("%%", "%%25"):gsub("/", "%%2F"):gsub(",", "%%2C"))
+end
+
+function M.external_groups(source, names)
+  local groups = {}
+  if type(source) == "table" then
+    source = source[1]
+  end
+  if type(source) ~= "string" or source == "" then
+    return groups  -- no source recorded (a login before this release): none until the next login
+  end
+  if type(names) == "string" then
+    names = { names }
+  end
+  for _, name in ipairs(type(names) == "table" and names or {}) do
+    if type(name) == "string" and name ~= "" then
+      groups[#groups + 1] = "/" .. segment(source) .. "/" .. segment(name)
+    end
+  end
+  return groups
+end
+
 -- Picks the user name and groups out of verified claims (claims.username / claims.groups in
 -- identity.yml, plus external_groups). Returns them, or nil when the claims carry no user name.
 function M.from_claims(claims)
@@ -62,7 +93,9 @@ function M.from_claims(claims)
   end
   local groups, seen = {}, {}
   for _, claim in ipairs(config.groups_claims) do
-    for _, group in ipairs(group_names(claims[claim])) do
+    local names = claim == EXTERNAL and M.external_groups(claims[EXTERNAL_SOURCE], claims[claim])
+      or group_names(claims[claim])
+    for _, group in ipairs(names) do
       if not seen[group] then
         seen[group] = true
         groups[#groups + 1] = group

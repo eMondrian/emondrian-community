@@ -33,6 +33,7 @@ It provides an analytical layer on top of relational databases, allowing users t
 - Windows 10/11 or a supported Linux distribution
 - Administrator / `sudo` rights — needed to install Docker and to start containers
 - **Port 80 must be free** — or pick another one. The web front door binds it, so an existing web server (IIS, Apache, nginx) will stop the setup; copy `.env.example` to `.env` and change `EMONDRIAN_PORT` there to use a different port instead (see [Quick Start](#quick-start))
+- **One installation per Docker host.** The containers have fixed names (`emondrian_service`, `emondrian_entry`, `emondrian_auth_gateway`, ...), by which they find each other, so a second copy of this repository on the same host cannot run beside the first: it stops with "container name ... is already in use", or, from a directory of the same name, replaces the first one's containers. Use a separate host or virtual machine for a second installation (a test copy next to a production one, for instance).
 - About **4 GB** of free disk space, and roughly **1.5 GB** of downloads on the first run (container images, including the authentication gateway and Keycloak, plus a ~26 MB sample dataset that expands to ~230 MB on disk)
 
 Docker is installed automatically by the quick-start script if it is not already available.
@@ -500,6 +501,9 @@ user name and groups and decides the rest: server rights per group in
 everything, `/emondrian-editors` edit schemas, `/emondrian-viewers` read them), and
 roles in the schemas decide which data each user sees. Groups are named by their
 full path, `/emondrian-admins` or `/Sales/WebAppUsers`, never by a plain name.
+
+The authentication gateway and Keycloak are part of every installation: setup always includes
+them, and running `docker-compose.yml` alone, without them, is not supported.
 
 **After setup, authentication is off**: anyone who can reach the server is the
 user `guest` with all rights — they can query data, edit schemas, read logs and,

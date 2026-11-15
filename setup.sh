@@ -687,6 +687,10 @@ if [ "$AUTH_STATE" = off ]; then
 else
     echo "Authentication: ON - log in with your user name and password."
     echo "  Switch it off (no restart): ./auth/scripts/authentication.sh off"
+    case "$({ grep -E '^PUBLIC_URL=' .env || true; } | tail -1 | cut -d= -f2-)" in
+        http://localhost*|http://127.0.0.1*|https://*|"") ;;
+        *) echo "  MCP agents that log in with OAuth from other machines need HTTPS: auth/README.md, HTTPS." ;;
+    esac
 fi
 echo
 

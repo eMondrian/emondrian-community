@@ -29,7 +29,9 @@ function M.init()
     -- clock leeway for exp/nbf/iat of the tokens the gateway checks (AUTH_TOKEN_LEEWAY)
     iat_slack                         = config.token_leeway,
     token_signing_alg_values_expected = { "RS256" },
-    session_contents                  = { id_token = true, access_token = true },
+    -- enc_id_token: the ID token as issued, sent back as id_token_hint at /logout; without it
+    -- Keycloak refuses the logout and its own session logs the person straight back in
+    session_contents                  = { id_token = true, enc_id_token = true, access_token = true },
     -- HTTPS to the provider (oidc-direct) is checked against lua_ssl_trusted_certificate
     ssl_verify                        = "yes",
   }

@@ -8,7 +8,7 @@ services:
   testenv-ad:
     profiles: ["testenv"]
     build: ./auth/testenv/ad
-    image: emondrian-testenv-ad:local
+    image: ${COMPOSE_PROJECT_NAME:-emondrian}-testenv-ad:local
     container_name: emondrian_testenv_ad
     hostname: dc
     domainname: emtest.local
@@ -57,7 +57,7 @@ services:
   testenv-proxy:
     profiles: ["testenv"]
     build: ./auth/testenv/proxy
-    image: emondrian-testenv-proxy:local
+    image: ${COMPOSE_PROJECT_NAME:-emondrian}-testenv-proxy:local
     container_name: emondrian_testenv_proxy
     environment:
       PUBLIC_HOST: ${TESTENV_PUBLIC_HOST:?run auth/testenv/testenv.sh}

@@ -6,7 +6,10 @@ the /account/tokens API, use it the way Excel (Basic) and scripts (Bearer) do, r
 
 Same settings as browser_login.py (BASE_URL, CA_FILE, RESOLVE, ENV_FILE). The token created is
 revoked at the end. TOKEN_USER (default: TEST_USER) is the name the token is used under, for
-sources whose user names differ from the login name. Exit status 0 when every check passes.
+sources whose user names differ from the login name. The probe of auth-tokens runs inside this
+stack's entry container: the compose service emondrian_entry of project COMPOSE_PROJECT_NAME (from
+ENV_FILE, else the checkout's directory name, as docker compose does), or ENTRY_CONTAINER. Exit
+status 0 when every check passes.
 """
 import base64
 import json
@@ -22,6 +25,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import browser_login as b  # noqa: E402  (reads the settings from the environment)
 
 failures = 0
+
+
+def entry_container():
+    """(name, None) of this stack's entry container, or (None, why): never another stack's."""
+    if os.environ.get("ENTRY_CONTAINER"):
+        return os.environ["ENTRY_CONTAINER"], None
+    project = (b.env_file_value("COMPOSE_PROJECT_NAME") or
+               re.sub(r"[^a-z0-9_-]", "", os.path.basename(b.ROOT).lower()))
+    found = subprocess.run(["docker", "ps", "--format", "{{.Names}}",
+                            "--filter", f"label=com.docker.compose.project={project}",
+                            "--filter", "label=com.docker.compose.service=emondrian_entry"],
+                           capture_output=True, text=True)
+    names = found.stdout.split()
+    if found.returncode != 0:
+        return None, f"docker ps failed: {found.stderr.strip()[:80]}"
+    if len(names) != 1:
+        return None, (f"{len(names)} entry containers of compose project '{project}'"
+                      f"{': ' + ', '.join(names) if names else ''}; set ENTRY_CONTAINER")
+    return names[0], None
 CUBES = (
     '<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/"><Body>'
     '<Discover xmlns="urn:schemas-microsoft-com:xml-analysis"><RequestType>MDSCHEMA_CUBES</RequestType>'
@@ -97,12 +119,18 @@ def main():
     check("the token is listed, with last use, without its value", bool(mine.get("last_used")) and "token" not in mine,
           f"hint {mine.get('hint')}, last used {mine.get('last_used')}")
 
-    # The service itself answers only the gateway
-    probe = subprocess.run(["docker", "exec", "emondrian_entry", "wget", "-q", "-S", "-O", "-",
-                            "--post-data", json.dumps({"token": token}), "http://auth-tokens:8080/verify"],
-                           capture_output=True, text=True)
-    refused = "403" in probe.stderr and token_user not in probe.stdout
-    check("auth-tokens refuses other containers (no secret)", refused, (probe.stderr.strip().splitlines() or ["?"])[0].strip())
+    # The service itself answers only the gateway: asked from another container of this stack
+    entry, why = entry_container()
+    if not entry:
+        check("auth-tokens refuses other containers (no secret)", False, why)
+    else:
+        probe = subprocess.run(["docker", "exec", entry, "wget", "-q", "-S", "-O", "-",
+                                "--post-data", json.dumps({"token": token}), "http://auth-tokens:8080/verify"],
+                               capture_output=True, text=True)
+        status_line = next((l.strip() for l in probe.stderr.splitlines() if l.strip().startswith("HTTP/")), "")
+        refused = " 403" in status_line and token_user not in probe.stdout
+        check("auth-tokens refuses other containers (no secret)", refused,
+              f"{entry}: {status_line or (probe.stderr.strip().splitlines() or ['no answer'])[0].strip()}")
 
     status, data = session_call("DELETE", f"/account/api/tokens/{token_id}")
     check("revoke the token", status == 200, f"HTTP {status}")

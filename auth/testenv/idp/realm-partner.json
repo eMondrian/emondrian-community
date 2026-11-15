@@ -19,6 +19,7 @@
       "enabled": true, "publicClient": false, "secret": "partner-oidc-test-secret",
       "standardFlowEnabled": true,
       "redirectUris": ["${PUBLIC_URL}/auth/realms/emondrian/broker/partner-oidc/endpoint"],
+      "attributes": {"post.logout.redirect.uris": "${PUBLIC_URL}/auth/realms/emondrian/broker/partner-oidc/endpoint/logout_response"},
       "protocolMappers": [
         {"name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
          "config": {"claim.name": "groups", "full.path": "false", "id.token.claim": "true",

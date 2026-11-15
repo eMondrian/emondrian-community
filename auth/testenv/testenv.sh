@@ -35,8 +35,12 @@ export TESTENV_IDP_PORT="${TESTENV_IDP_PORT:-8095}" TESTENV_PROXY_PORT="${TESTEN
 export TESTENV_PROXY_JWT_PORT="${TESTENV_PROXY_JWT_PORT:-9181}"
 export TESTENV_EMONDRIAN_HOST="$EMONDRIAN_HOST" TESTENV_PUBLIC_HOST="$PUBLIC_HOSTPORT" TESTENV_UID="$(id -u)"
 CA_FILE="${TESTENV_CA_FILE:-$REPO/auth/secrets/tls/tls.crt}"
-# The compose network of this checkout (project name = directory name)
-NETWORK="$(basename "$REPO" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')_app_network"
+# The compose project of this checkout: COMPOSE_PROJECT_NAME (environment or .env), else the directory name
+PROJECT="${COMPOSE_PROJECT_NAME:-$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env 2>/dev/null | tail -1)}"
+PROJECT="${PROJECT:-$(basename "$REPO" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')}"
+NETWORK="${PROJECT}_app_network"
+# Locally built images are named per project (docker-compose.auth.yml)
+KERBEROS_IMAGE="${PROJECT}-auth-kerberos:local"
 
 compose() {
     docker compose -f docker-compose.yml -f docker-compose.auth.yml -f $TE/docker-compose.testenv.yml \
@@ -199,7 +203,7 @@ kerberos_check() {  # profile user [refused]
     record "$1" docker run --rm --network "$NETWORK" --add-host "$EMONDRIAN_HOST:$TESTENV_HOST" \
         -v "$STATE/krb5.conf:/etc/krb5.conf:ro" -v "$CA_FILE:/ca.pem:ro" -v "$REPO/auth/tests:/tests:ro" \
         -v "$SECRETS/user-password:/pw:ro" -e BASE_URL="$PUBLIC_URL" -e CA_FILE=/ca.pem -e EXPECT="${3:-}" \
-        --user "$(id -u):$(id -g)" --entrypoint sh emondrian-auth-kerberos:local \
+        --user "$(id -u):$(id -g)" --entrypoint sh "$KERBEROS_IMAGE" \
         -c "kinit $2@EMTEST.LOCAL < /pw >/dev/null && echo 'OK   | kinit $2@EMTEST.LOCAL |' && python3 -B /tests/check_kerberos.py"
 }
 

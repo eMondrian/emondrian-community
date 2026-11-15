@@ -67,6 +67,12 @@ def keycloak_get(s, path, query=None):
         return json.load(r)
 
 
+def group_paths(groups):
+    """The groups as the gateway forwards them: each by its full path (/Sales/WebAppUsers), never by
+    its own name, which a same-named group elsewhere shares."""
+    return [g.get("path") or "/" + g["name"] for g in groups]
+
+
 def lookup(s, username):
     """(groups, None) for a user of the configured source, or (None, reason)."""
     now = time.time()
@@ -82,7 +88,7 @@ def lookup(s, username):
     elif not users[0].get("enabled", False):
         result = (None, "disabled")
     else:
-        result = ([g["name"] for g in keycloak_get(s, f"/users/{users[0]['id']}/groups")], None)
+        result = (group_paths(keycloak_get(s, f"/users/{users[0]['id']}/groups")), None)
     with _cache_lock:
         _cache[username.lower()] = (now + LOOKUP_CACHE_SECONDS, *result)
     return result

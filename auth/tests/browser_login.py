@@ -175,7 +175,35 @@ def main():
     names = re.findall(r"<CUBE_NAME>([^<]*)</CUBE_NAME>", body)
     print(f"{'OK  ' if xmla_status == 200 and names else 'FAIL'} | XML/A with the browser session | "
           f"HTTP {xmla_status}, cubes {names}")
-    return 0 if status == 200 and xmla_status == 200 and names else 1
+    ok = status == 200 and xmla_status == 200 and bool(names)
+
+    # Pages behind the login are not stored by the browser (Back after a logout asks the server
+    # again); fonts and images keep their server's caching
+    for path, stored in (("/", False), ("/app.js", False), ("/features.json", False),
+                         ("/assets/ui/fonts/roboto-latin-wght-normal.woff2", True)):
+        code, cache = cache_control(path)
+        good = code == 200 and (("no-store" in cache) != stored)
+        ok &= good
+        print(f"{'OK  ' if good else 'FAIL'} | {path} {'may be stored' if stored else 'is not stored'} | "
+              f"HTTP {code}, Cache-Control: {cache or '-'}")
+
+    # After the logout the entry page needs the login again
+    fetch(BASE + "/logout")
+    code, url, _ = fetch(BASE + "/")
+    good = urllib.parse.urlsplit(url).path.startswith("/auth/")
+    ok &= good
+    print(f"{'OK  ' if good else 'FAIL'} | after /logout the entry page asks for the login | "
+          f"HTTP {code}, {step_name(url)}")
+    return 0 if ok else 1
+
+
+def cache_control(path):
+    try:
+        with OPENER.open(urllib.request.Request(BASE + path), timeout=30) as r:
+            r.read()
+            return r.status, r.headers.get("Cache-Control") or ""
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("Cache-Control") or ""
 
 
 if __name__ == "__main__":

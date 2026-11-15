@@ -105,4 +105,8 @@ if [ "$enabled" = true ]; then
     echo "Authentication is OFF: everybody who reaches the server gets in without logging in."
 else
     echo "Authentication is ON: logins are required (browser sessions of the guest are not kept)."
+    case "$({ grep -E '^PUBLIC_URL=' .env || true; } | tail -1 | cut -d= -f2-)" in
+        http://localhost*|http://127.0.0.1*|https://*|"") ;;
+        *) echo "  MCP agents that log in with OAuth from other machines need HTTPS: auth/README.md, HTTPS." ;;
+    esac
 fi

@@ -81,10 +81,31 @@ function M.load()
   M.public_url     = env("PUBLIC_URL"):gsub("/+$", "")
   -- Signs the session cookie and salts cache keys; the same in every worker
   M.secret         = env("SESSION_SECRET")
+  -- Sent to eMondrian as X-Forwarded-Secret on every request forwarded there: eMondrian believes
+  -- X-Forwarded-User/-Groups only with it, so a caller that reaches eMondrian around this gateway
+  -- (the host, another container) cannot name itself a user. The same value as eMondrian's.
+  M.forwarded_secret = env("EMONDRIAN_FORWARDED_SECRET")
+  if #M.forwarded_secret < 32 then
+    error("EMONDRIAN_FORWARDED_SECRET must be at least 32 characters (auth/scripts/init.sh writes one)")
+  end
   M.https          = M.public_url:find("^https://") ~= nil
 
   local gateway = read_gateway_config()
   M.mode     = gateway.mode or "broker"
+  -- mode broker: the service account that checks a personal token's owner at use (owner.lua)
+  local owner_check = gateway.owner_check
+  if M.mode == "broker" and type(owner_check) == "table" and owner_check.client_id and owner_check.client_secret then
+    local keycloak = env("KEYCLOAK_INTERNAL_URL", "http://keycloak:8080/auth"):gsub("/+$", "")
+    local realm = env("KEYCLOAK_REALM", "emondrian")
+    M.owner_check = {
+      client_id      = owner_check.client_id,
+      client_secret  = owner_check.client_secret,
+      token_endpoint = keycloak .. "/realms/" .. realm .. "/protocol/openid-connect/token",
+      users          = keycloak .. "/admin/realms/" .. realm .. "/users",
+    }
+  else
+    M.owner_check = nil
+  end
   M.provider = provider(gateway)
   -- mode trusted-proxy: how to recognise the SSO proxy and read the user from it
   M.trusted_proxy = type(gateway.trusted_proxy) == "table" and gateway.trusted_proxy or nil

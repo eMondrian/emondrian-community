@@ -145,4 +145,12 @@ if ($WantOpen) {
 }
 else {
     Write-Host "Authentication is ON: logins are required."
+    $PublicUrl = ""
+    if (Test-Path ".env") {
+        $Line = Select-String -Path ".env" -Pattern '^PUBLIC_URL=' | Select-Object -Last 1
+        if ($Line) { $PublicUrl = $Line.Line.Substring("PUBLIC_URL=".Length) }
+    }
+    if ($PublicUrl -like "http://*" -and $PublicUrl -notlike "http://localhost*" -and $PublicUrl -notlike "http://127.0.0.1*") {
+        Write-Host "  MCP agents that log in with OAuth from other machines need HTTPS: auth\README.md, HTTPS."
+    }
 }

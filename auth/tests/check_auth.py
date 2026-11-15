@@ -125,6 +125,28 @@ status, _, headers = request("/xmla", CUBES, {"Content-Type": "text/xml"})
 challenges = headers.get_all("WWW-Authenticate") or []
 check("XML/A asks for Basic", status == 401 and any(c.startswith("Basic") for c in challenges),
       f"HTTP {status}, {challenges}")
+check("the login redirect is not stored", "no-store" in (headers.get("Cache-Control") or ""),
+      f"Cache-Control: {headers.get('Cache-Control')}")
+# A page's own script (fetch from the entry page or the OLAP client after its session ended): 401
+# without a challenge, so the browser opens no password dialog of its own over the page
+for path, data, h in (("/api/license/", None, {"Sec-Fetch-Mode": "cors", "Accept": "application/json"}),
+                      ("/xmla", CUBES, {"Content-Type": "text/xml", "Sec-Fetch-Mode": "same-origin"}),
+                      ("/api/license/", None, {"X-Requested-With": "XMLHttpRequest"})):
+    status, body, headers = request(path, data, h)
+    try:
+        answer = json.loads(body).get("error") if "json" in (headers.get("Content-Type") or "") else body.strip()
+    except ValueError:
+        answer = body.strip()
+    check(f"a page's request to {path} gets no password dialog ({', '.join(h)})",
+          status == 401 and not headers.get_all("WWW-Authenticate") and answer,
+          f"HTTP {status}, challenges {headers.get_all('WWW-Authenticate')}, {answer!r}")
+# Scripts and curl -u keep the Basic challenge on the API; Excel and Power BI on XML/A (below)
+status, _, headers = request("/api/license/")
+check("API asks for Basic (scripts)", status == 401 and any(
+      c.startswith("Basic") for c in headers.get_all("WWW-Authenticate") or []), f"HTTP {status}")
+status, _, headers = request("/api/license/", headers={"Authorization": good})
+check("API with Basic (curl -u)", status in (200, 403) and "no-store" in (headers.get("Cache-Control") or ""),
+      f"HTTP {status} (403: no licence right), Cache-Control: {headers.get('Cache-Control')}")
 status, _, headers = request("/emondrian/mcp", b"{}", {"Content-Type": "application/json"})
 check("MCP asks for Bearer", status == 401 and (headers.get("WWW-Authenticate") or "").startswith("Bearer"),
       f"HTTP {status}, {headers.get('WWW-Authenticate')}")

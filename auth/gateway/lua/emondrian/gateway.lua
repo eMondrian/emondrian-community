@@ -28,7 +28,39 @@ end
 -- and the API, whose clients (Excel, Power BI) only answer Basic; Bearer for MCP clients.
 -- bearer_error: why a Bearer token was refused. It goes to the client as error="invalid_token"
 -- (RFC 6750), so an MCP client shows the reason instead of retrying with the same token.
+-- A request a page's own script made (fetch/XHR from the entry page, the OLAP client): browsers
+-- mark it with Sec-Fetch-Mode other than "navigate" (or a library with X-Requested-With). Excel,
+-- Power BI and scripts send neither.
+local function from_page_script()
+  local mode = ngx.var.http_sec_fetch_mode
+  if mode and mode ~= "" and mode ~= "navigate" then
+    return true
+  end
+  return ngx.var.http_x_requested_with ~= nil
+end
+
+-- 401 without a challenge, for a page's script: a Basic challenge there makes the browser open its
+-- own password dialog over a page whose session has ended. The page goes to the login instead
+-- (login: "/" redirects there); a page that shows the answer's text shows the message.
+local function login_required(bearer_error)
+  local message = bearer_error and ("Token refused: " .. bearer_error)
+                  or "Your session has ended. Reload the page to sign in again."
+  ngx.status = ngx.HTTP_UNAUTHORIZED
+  ngx.header["Cache-Control"] = "no-store"
+  if (ngx.var.http_accept or ""):find("json", 1, true) then
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(require("cjson.safe").encode({ error = "login_required", message = message, login = "/" }))
+  else
+    ngx.header["Content-Type"] = "text/plain; charset=utf-8"
+    ngx.say(message)
+  end
+  return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+end
+
 local function challenge(bearer_error)
+  if not ngx.var.uri:find("^/emondrian/mcp") and from_page_script() then
+    return login_required(bearer_error)
+  end
   if ngx.var.uri:find("^/emondrian/mcp") and config.mcp_oauth then
     -- MCP clients find the authorization server through this (MCP authorization)
     local error_params = ""

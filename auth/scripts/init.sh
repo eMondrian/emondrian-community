@@ -91,7 +91,7 @@ set_default COMPOSE_PROFILES keycloak
 # A plain "docker compose ..." in this directory then includes the authentication overlay
 set_default COMPOSE_PATH_SEPARATOR ":"
 set_default COMPOSE_FILE "docker-compose.yml:docker-compose.auth.yml"
-for key in OIDC_CLIENT_SECRET SESSION_SECRET KEYCLOAK_DB_PASSWORD; do set_default "$key" "$(openssl rand -hex 32)"; done
+for key in OIDC_CLIENT_SECRET SESSION_SECRET KEYCLOAK_DB_PASSWORD EMONDRIAN_FORWARDED_SECRET; do set_default "$key" "$(openssl rand -hex 32)"; done
 set_default KEYCLOAK_ADMIN_PASSWORD "$(openssl rand -hex 16)"
 # Keycloak's admin console: this machine and private networks; narrow it for production
 set_default KEYCLOAK_ADMIN_ALLOW "127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Kerberos (Negotiate) end-to-end checks, as Excel on a domain computer would log in.
 
-Runs where python3-gssapi and a Kerberos ticket are available, e.g. in the auth-kerberos image:
+Runs where python3-gssapi and a Kerberos ticket are available, e.g. in the auth-kerberos image,
+<project>-auth-kerberos:local (<project>: the compose project, by default the directory name):
 
     docker run --rm -it --add-host emondrian.example.com:10.0.0.5 \\
         -v /path/krb5.conf:/etc/krb5.conf:ro -v /path/ca.pem:/ca.pem:ro -v $PWD/auth/tests:/tests:ro \\
-        --entrypoint sh emondrian-auth-kerberos:local \\
+        --entrypoint sh <project>-auth-kerberos:local \\
         -c 'kinit jdoe@EXAMPLE.COM && BASE_URL=https://emondrian.example.com CA_FILE=/ca.pem python3 /tests/check_kerberos.py'
 
 EXPECT=refused checks that the ticket holder is refused (not allowed by the LDAP source).

@@ -600,7 +600,7 @@ Set-EnvDefault "COMPOSE_PROFILES" "keycloak"
 # A plain "docker compose ..." in this directory then includes the authentication overlay
 Set-EnvDefault "COMPOSE_PATH_SEPARATOR" ":"
 Set-EnvDefault "COMPOSE_FILE" "docker-compose.yml:docker-compose.auth.yml"
-foreach ($Key in @("OIDC_CLIENT_SECRET", "SESSION_SECRET", "KEYCLOAK_DB_PASSWORD")) {
+foreach ($Key in @("OIDC_CLIENT_SECRET", "SESSION_SECRET", "KEYCLOAK_DB_PASSWORD", "EMONDRIAN_FORWARDED_SECRET")) {
     Set-EnvDefault $Key (New-RandomHex 32)
 }
 Set-EnvDefault "KEYCLOAK_ADMIN_PASSWORD" (New-RandomHex 16)
@@ -981,6 +981,14 @@ if ($AuthState -eq "off") {
 else {
     Write-Host "Authentication: ON - log in with your user name and password."
     Write-Host "  Switch it off (no restart): .\auth\scripts\authentication.ps1 off"
+    $PublicUrl = ""
+    if (Test-Path ".env") {
+        $Line = Select-String -Path ".env" -Pattern '^PUBLIC_URL=' | Select-Object -Last 1
+        if ($Line) { $PublicUrl = $Line.Line.Substring("PUBLIC_URL=".Length) }
+    }
+    if ($PublicUrl -like "http://*" -and $PublicUrl -notlike "http://localhost*" -and $PublicUrl -notlike "http://127.0.0.1*") {
+        Write-Host "  MCP agents that log in with OAuth from other machines need HTTPS: auth\README.md, HTTPS."
+    }
 }
 Write-Host ""
 

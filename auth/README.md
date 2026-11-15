@@ -75,6 +75,17 @@ The `local` source in `identity.yml`. Manage these users in Keycloak's admin con
 Users listed under `users:` in `identity.yml` are created when missing, with the initial password
 from the file named there (in `auth/secrets/`); existing users are left alone.
 
+**Members of `emondrian-admins` are also administrators of the realm in Keycloak.** Setup gives
+the group Keycloak's role `realm-admin` (of the client `realm-management`), and every apply adds it
+again if it is missing. With it, they manage users and groups through the MCP tools and may read
+and change the security file and switch authentication off. It is Keycloak's full administration
+of the realm: users, groups, clients, identity providers and token settings. Keycloak gives a
+group's roles to the members of its subgroups too, while eMondrian does not count them as
+`/emondrian-admins` members, so `emondrian-admins` must have no subgroups: while it has any, apply
+does not give it `realm-admin` (it takes it back if it is there) and logs an ERROR naming them,
+and the MCP tool `create_group` refuses to create one under it. Keycloak's own administrator
+(`KEYCLOAK_ADMIN_USER` in `.env`) is never affected.
+
 ### Active Directory or LDAP
 
 Users stay in the directory; Keycloak checks their password there at every login and copies
@@ -126,6 +137,30 @@ mondrian.security.license.manage=/emondrian-admins,/BI-Admins
 Users log in with their account name (`jdoe`); `attributes: username_attribute: userPrincipalName`
 switches to `jdoe@corp.example.com`. Nested groups count. A disabled account cannot log in.
 
+### External identity providers (Entra ID, Google, Okta, ADFS, SAML)
+
+A source of `type: oidc` or `type: saml` in `identity.yml` adds a button to the login page (see the
+commented example there). **Every user must already have an account in Keycloak**: signing in
+through a provider never creates one, and somebody the provider knows but Keycloak does not is
+refused with a page saying to ask the administrator (Keycloak answers 401). With
+`link_by_email: true` on a source, a sign-in is linked to the account with the same e-mail address
+(or user name): create the account (admin console, or the MCP tool `create_user` with the
+person's e-mail) and the person signs in with the provider. Set it only for a provider you trust to
+verify e-mail addresses, such as your own Entra ID tenant; never for one where anybody can make an
+account with any address. Without it, only accounts an administrator linked by hand are let in
+(*Users* → the user → *Identity provider links*). Users of Active Directory or LDAP count as being
+in Keycloak: they are looked up in the directory.
+
+These users have no password in Keycloak, so they sign in through the provider in the browser,
+with MCP OAuth and with the device code, and **Excel and Power BI need a personal access token**
+(`PUBLIC_URL/account/tokens`), checked against the account at every use. The provider's groups
+(`groups_claim`, SAML `groups_attribute`) reach eMondrian under the source's name,
+`/<source>/<group>` (`/entra/BI-Users`; a `/`, `,` or `%` in a group name is written `%2F`,
+`%2C`, `%25`), so a provider can never grant a Keycloak group or a server group: a provider group
+called `emondrian-admins` is `/entra/emondrian-admins`. A personal token gets them as of the
+user's last login through the provider; disabling the account in Keycloak stops its tokens within
+30 seconds.
+
 ## Roles
 
 Every user who logs in gets in. The gateway passes the user name and the user's groups on to
@@ -144,6 +179,15 @@ when the user logged in with a user name and password, an OAuth token or a brows
 with a personal access token or with authentication off. On the MCP endpoint (`/emondrian/mcp`)
 the gateway adds `X-Forwarded-Client: mcp`, so that eMondrian can tell an AI agent from a person.
 The gateway overwrites every one of these headers, whatever the client sent.
+
+On the requests it forwards to eMondrian (XML/A, the REST API, the logs page, MCP) the gateway
+also sends `X-Forwarded-Secret`, the value of `EMONDRIAN_FORWARDED_SECRET` in `.env`, which setup
+generates for each install. eMondrian believes the user and groups only on a request carrying it,
+and refuses (403) a request that names a user without it: so nothing that reaches eMondrian around
+the gateway (this machine, another container) can pose as a user. The Dashboard receives it too
+and answers nothing without it (`GATEWAY_ONLY`), so it cannot be used around the gateway either;
+eMondrian's MCP tools send it when they call the Dashboard. The web tools never receive it. To change it, edit the value in `.env` and run `docker compose up -d`; the
+gateway and eMondrian restart with the new one.
 
 **Server rights** are in `auth/emondrian/mondrian.properties`, one line per right naming the users
 and groups that hold it. Out of the box they name the three groups setup creates in Keycloak:
@@ -184,7 +228,7 @@ full access**. Give a schema a restrictive `defaultRole` before relying on roles
 
 | Client | With authentication on |
 |---|---|
-| Browser | Login page; `PUBLIC_URL/logout` logs out |
+| Browser | Login page; `PUBLIC_URL/logout` logs out (also of Keycloak). Pages are not kept by the browser, and a page's own request after the session has ended gets 401 without a password dialog (`login_required`; reload to sign in) |
 | Excel | *Data → Get Data → From Analysis Services*, server `PUBLIC_URL/xmla`, *Use the following User Name and Password* |
 | Power BI | *Analysis Services*, server `PUBLIC_URL/xmla`, then *Database* (user name and password) |
 | Scripts | `curl -u jdoe https://bi.example.com/xmla …` |
@@ -197,8 +241,19 @@ claude mcp add --transport http emondrian https://bi.example.com/emondrian/mcp \
     --header "Authorization: Basic $(printf '%s' 'jdoe:password' | base64)"
 ```
 
-A login checked once is reused for 5 minutes (`policy.basic_cache`), so removing a user's
-access reaches Excel and Power BI after at most that long.
+A login checked once is reused for 5 minutes (`policy.basic_cache`), but never past 30 seconds
+before its own access token expires (5 minutes by default), so disabling a user, a new password
+or a removed group reaches Excel and Power BI within one token lifetime.
+
+A **personal access token** (`PUBLIC_URL/account/tokens`, used as the password or as a Bearer
+token) follows its owner: at each use, at most every 30 seconds, the gateway asks Keycloak whether
+the owner still exists and is enabled and which groups it is in now, with its own service account
+`emondrian-gateway-lookup` (Keycloak's `view-users` only). A deleted or disabled owner's tokens
+stop working and a changed group applies within 30 seconds. While Keycloak cannot be reached, a
+token whose last check is older than 30 seconds is refused. Tokens last 90 days unless their owner
+chooses otherwise (at most 365, `personal_tokens` in `identity.yml`). A user who signs in through an
+external identity provider and is not kept in Keycloak cannot use personal tokens (see *External
+identity providers* above).
 
 ## HTTPS
 
@@ -212,6 +267,16 @@ Then set in `.env` `PUBLIC_URL=https://bi.example.com` and `EMONDRIAN_TLS_PORT=4
 it at `0`, a random unused port), and run `docker compose up -d`. Port `EMONDRIAN_PORT` then only
 redirects to HTTPS. Excel and Power BI accept only certificates Windows trusts: use one of your
 organisation's CA or a public one, not a self-signed one.
+
+**Once authentication is on, MCP agents that log in with OAuth from another machine need HTTPS**
+(with authentication off nobody logs in, so it does not arise). `authentication.sh on`, the MCP
+tool `set_open_access` and setup say so when `PUBLIC_URL` is `http://` and not `localhost`. Claude Code and other MCP
+clients refuse to send a login to a token endpoint over plain HTTP, except on `localhost`: over
+`http://` the OAuth login of `/emondrian/mcp` (and `/emondrian/mcp/sse`) works only from a client on
+the server itself, and only with `PUBLIC_URL=http://localhost:…`, since every address in the login
+metadata is built from `PUBLIC_URL`. A user name and password (`Authorization: Basic`, see
+[Connecting](#connecting)) work over HTTP too, but travel unencrypted. For a test with a self-signed
+certificate, give the client its certificate: for Claude Code, `NODE_EXTRA_CA_CERTS=<file>.crt`.
 
 With TLS ending at a reverse proxy in front of the gateway, list the proxy in
 `GATEWAY_REAL_IP_FROM` (`.env`); `PUBLIC_URL` is then the proxy's `https://` address.

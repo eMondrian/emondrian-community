@@ -100,6 +100,31 @@ def claims(token):
     return json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
 
 
+def forwarded_groups(c):
+    """The groups the gateway forwards for these claims (identity.lua): Keycloak's by full path,
+    an external provider's as /<source>/<group> with "%", "/" and "," written %25, %2F, %2C. None
+    when the token carries neither form."""
+    def seg(s):
+        return s.replace("%", "%25").replace("/", "%2F").replace(",", "%2C")
+    local, external = c.get("groups"), c.get("external_groups")
+    source = c.get("external_groups_source")
+    source = source[0] if isinstance(source, list) and source else source
+    if local is None and external is None:
+        return None
+    out = []
+    for g in [local] if isinstance(local, str) else (local or []):
+        parts = [p.replace(",", "") for p in g.split("/") if p.replace(",", "")]
+        if parts:
+            out.append("/" + "/".join(parts))
+    if external is not None:
+        if not isinstance(source, str) or not source:
+            return None  # provider groups without their source: the gateway forwards none
+        for g in [external] if isinstance(external, str) else external:
+            if g:
+                out.append(f"/{seg(source)}/{seg(g)}")
+    return out
+
+
 def main():
     resource = b.BASE + "/emondrian/mcp"
 
@@ -161,8 +186,15 @@ def main():
         check("token exchange with the PKCE verifier", status == 200 and token,
               f"HTTP {status}, user {c.get('preferred_username')}, aud {c.get('aud')}, groups {c.get('groups')}"
               + ("" if token else f", {tokens}"))
-        check("the token carries audience and groups without asking for them", "emondrian" in str(c.get("aud"))
-              and c.get("groups") is not None, f"aud {c.get('aud')}, groups {c.get('groups')}")
+        # Keycloak's groups (claim groups), or an external provider's (external_groups with
+        # external_groups_source); EXPECT_GROUPS, when set, is the exact list the gateway must forward
+        groups = forwarded_groups(c)
+        expect = os.environ.get("EXPECT_GROUPS")
+        expected = None if expect is None else sorted(g.strip() for g in expect.split(",") if g.strip())
+        check("the token carries audience and groups without asking for them",
+              "emondrian" in str(c.get("aud")) and groups is not None
+              and (expected is None or sorted(groups) == expected),
+              f"aud {c.get('aud')}, forwarded groups {groups}" + ("" if expected is None else f", expected {expected}"))
         check("an offline refresh token for the client", isinstance(tokens, dict) and tokens.get("refresh_token")
               and claims(tokens["refresh_token"]).get("typ") == "Offline", f"scope {(tokens or {}).get('scope')}")
     if token:

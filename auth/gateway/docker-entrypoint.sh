@@ -68,7 +68,6 @@ server {
     ssl_certificate_key /etc/nginx/tls/tls.key;
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_session_cache   shared:TLS:10m;
-    add_header Strict-Transport-Security "max-age=31536000" always;
     include /etc/nginx/emondrian-locations.conf;
 }
 EOF

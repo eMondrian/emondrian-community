@@ -39,10 +39,35 @@ sources:
   #  #  username_attribute: userPrincipalName
   #  # The LDAPS certificate must be signed by a CA in auth/secrets/truststore/ (PEM files).
 
-# Every user who logs in gets in. Groups go to eMondrian as they are (X-Forwarded-Groups), and
+  # An external identity provider (OIDC or SAML): a button on the login page. Presets for OIDC:
+  # entra, google, okta, adfs, keycloak, generic; for SAML: adfs, generic.
+  #- name: entra                   # unique
+  #  type: oidc
+  #  preset: entra
+  #  display_name: Microsoft
+  #  issuer: https://login.microsoftonline.com/<tenant id>/v2.0
+  #  client_id: <application id>
+  #  client_secret_file: entra-secret              # file in auth/secrets/
+  #  # Register both addresses with the provider (here for name: entra): the redirect URI
+  #  # PUBLIC_URL/auth/realms/emondrian/broker/entra/endpoint and, for logging out, the post-logout
+  #  # redirect URI PUBLIC_URL/auth/realms/emondrian/broker/entra/endpoint/logout_response.
+  #  # Without the second, the provider refuses the logout and the person stays signed in.
+  #  # Every user must already have an account in Keycloak: signing in through the provider
+  #  # never creates one, and somebody without one is refused. true: the sign-in is linked to
+  #  # the account with the same e-mail address (or user name), for a provider you trust to
+  #  # verify e-mail addresses (your own tenant, not "any Google account"). false (the default):
+  #  # only accounts an administrator linked to the provider in Keycloak's admin console
+  #  # (Users -> the user -> Identity provider links).
+  #  link_by_email: true
+  #  # The provider's groups (groups_claim / SAML groups_attribute) go to eMondrian under the
+  #  # source's name: /entra/BI-Users (a "/" or "," in a group name is written %2F, %2C), so a
+  #  # provider can never grant a Keycloak or server group. A personal token gets them as of the
+  #  # user's last login through the provider.
+
+# Every user who logs in gets in. Groups go to eMondrian by full path (X-Forwarded-Groups), and
 # eMondrian decides what each user may see and do: server rights per group in
 # auth/emondrian/mondrian.properties, data roles per group or user in the schemas
-# (<RoleMember name="Sales-EMEA"/>).
+# (<RoleMember name="/Sales-EMEA"/>).
 
 # Authentication off: everybody who reaches the server gets in without logging in (browser,
 # Excel, Power BI, MCP), as this one user in these groups. The sources above stay configured.
@@ -61,6 +86,8 @@ open_access:
 #    failures: 5
 #    wait: 1m                 # first block, doubled after every further failure...
 #    max_wait: 15m            # ...up to this
-#  basic_cache: 5m            # a checked login of Excel or Power BI is reused this long:
-#                             # removing a user's access takes effect after at most this
+#  basic_cache: 5m            # a checked login of Excel or Power BI is reused this long, but
+#                             # never past 30 s before that login's own token expires (the
+#                             # token lifetime, 5m): disabling a user, a new password or a
+#                             # removed group reaches Basic within one token lifetime
 #  basic_failure_cache: 10s   # a refused login is refused again without asking
