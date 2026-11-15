@@ -10,6 +10,35 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
+## Unreleased
+
+Server `10.0.91` · modules `0.0.0.107` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2`
+
+Groups by full path, a shorter token expiry tolerance and larger request headers in the authentication gateway; server `10.0.91` (was `10.0.89`) and modules `0.0.0.107` (were `0.0.0.106`). The web tools and the Dashboard are unchanged.
+
+### Authentication
+
+- **Groups are forwarded by their full path only,** top-level groups included: a member of `emondrian-admins` arrives as `/emondrian-admins`, a member of `WebAppUsers` inside `Sales` as `/Sales/WebAppUsers`. A group is never forwarded by its own name, so two groups of the same name under different parents are never taken for each other. Membership is not inherited: a right for `/Sales` does not reach the members of `/Sales/WebAppUsers`, and a member of a group inside `/emondrian-admins` is not an administrator. Plain group names from an external identity provider, Kerberos or a trusted proxy arrive as top-level paths (`Admins` as `/Admins`).
+- **Server rights and schema roles name groups by path.** `auth/emondrian/mondrian.properties` now names `/emondrian-admins`, `/emondrian-editors` and `/emondrian-viewers`; write your own groups the same way, also in a schema's `<RoleMember name="/Sales/WebAppUsers"/>`.
+- **Bearer tokens are refused at most 60 seconds after they expire** (was 120): `AUTH_TOKEN_LEEWAY` in `.env`, 0 to 300 seconds. A refusal now says why: `token expired` or `token not valid yet`.
+- **Request headers up to 32 KB** (were 8 KB) at the gateway, the entry page and eMondrian, since every request carries the user's groups and access token.
+
+### Server
+
+- **`10.0.91`** (engine `9.3.0-emondrian.89`, was `.88`): Tomcat accepts 32 KB of request headers. The engine reads server rights from a security file named with `-Dmondrian.security.file` and rereads it when it changes, and a long list filter such as Power BI's `TREATAS` over thousands of keys reaches the database as one `IN` list.
+
+### Modules
+
+- **MCP acts as the person calling.** Behind the gateway every MCP tool call uses the caller's user name and groups: the schema roles decide which data and which cubes they see, the server rights decide what they may change, and the traffic log names them. An MCP session over SSE belongs to the user who opened it. Before, every MCP call ran as the same anonymous identity.
+- **`describe_cube`, `get_csdl` and `list_catalogs` need no server right**, like Excel's view of the model: the caller's roles limit what they show, the same as XML/A. `get_schema` (the schema file itself) still takes `schema.read`.
+- **DAX:** a filter on thousands of keys (`TREATAS`, `IN { … }`) no longer overflows; it reaches the database as one `IN` list.
+
+### Upgrading
+
+- **A right or a `<RoleMember>` that names a group by its plain name now grants nothing.** Write the path instead: `emondrian-admins` becomes `/emondrian-admins`. `./auth/scripts/apply-config.sh` lists every such entry it finds in `auth/emondrian/mondrian.properties` and in `schema/`, with the path to write; it changes no file. Your own `mondrian.properties`: rewrite the group names the same way.
+- **Personal access tokens issued before this release carry no groups** (their owner still logs in with them): they stored plain names, which cannot be told from a same-named group elsewhere. Issue a new token on `/account/tokens`. The gateway logs a warning naming the owner when such a token is used.
+- Keycloak is switched to full group paths by `apply-config.sh` (also run by `setup.sh`); the realm is not re-imported.
+
 ## 2026.11.14.1
 
 Server `10.0.89` · modules `0.0.0.106` · OLAP Client `1.2.3` · Dashboard `0.1.3` · entry `1.3.2` · authentication gateway and Keycloak (new)
