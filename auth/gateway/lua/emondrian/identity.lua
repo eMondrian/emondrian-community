@@ -17,8 +17,16 @@ end
 
 M.one_line = one_line
 
--- Group names from a claim: a list of names or paths ("/Parent/WebAppUsers" when Keycloak sends
--- full paths), or a single string.
+local function clean(s)
+  return (one_line(s):gsub(",", ""))
+end
+
+-- Group names from a claim: a list of names or paths, or a single string. Every group is
+-- forwarded as its full path, top-level groups included ("/emondrian-admins",
+-- "/Sales/WebAppUsers"), never by its own name: two groups of the same name under different
+-- parents must not be taken for each other. A plain name (a directory group of an external
+-- provider, a guest group of identity.yml) is a top-level group: "Admins" goes as "/Admins".
+-- Membership is not inherited: a member of /Sales/WebAppUsers is not sent "/Sales".
 local function group_names(value)
   if type(value) == "string" then
     value = { value }
@@ -27,15 +35,23 @@ local function group_names(value)
   if type(value) == "table" then
     for _, group in ipairs(value) do
       if type(group) == "string" then
-        group = one_line(group:match("([^/]*)$")):gsub(",", "")
-        if group ~= "" then
-          groups[#groups + 1] = group
+        local parts = {}
+        for part in group:gmatch("[^/]+") do
+          part = clean(part)
+          if part ~= "" then
+            parts[#parts + 1] = part
+          end
+        end
+        if #parts > 0 then
+          groups[#groups + 1] = "/" .. table.concat(parts, "/")
         end
       end
     end
   end
   return groups
 end
+
+M.group_names = group_names
 
 -- Picks the user name and groups out of verified claims (claims.username / claims.groups in
 -- identity.yml, plus external_groups). Returns them, or nil when the claims carry no user name.

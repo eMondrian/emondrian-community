@@ -65,7 +65,7 @@ end
 local function open_access()
   local guest = config.open_access
   ngx.var.auth_user   = identity.one_line(guest.user)
-  ngx.var.auth_groups = table.concat(guest.groups, ",")
+  ngx.var.auth_groups = table.concat(identity.group_names(guest.groups), ",")
   ngx.var.auth_method = "open"
   ngx.req.clear_header("Authorization")
 end

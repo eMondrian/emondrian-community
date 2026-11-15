@@ -128,7 +128,7 @@ check("XML/A asks for Basic", status == 401 and any(c.startswith("Basic") for c 
 status, _, headers = request("/emondrian/mcp", b"{}", {"Content-Type": "application/json"})
 check("MCP asks for Bearer", status == 401 and (headers.get("WWW-Authenticate") or "").startswith("Bearer"),
       f"HTTP {status}, {headers.get('WWW-Authenticate')}")
-status, _ = xmla_cubes({"X-Forwarded-User": "admin", "X-Forwarded-Groups": "emondrian-admins"})
+status, _ = xmla_cubes({"X-Forwarded-User": "admin", "X-Forwarded-Groups": "/emondrian-admins"})
 check("forged X-Forwarded-* alone is refused", status == 401, f"HTTP {status}")
 
 # Basic
@@ -138,7 +138,7 @@ status, cubes = xmla_cubes({"Authorization": good})
 check("XML/A with Basic again (cached)", cubes_ok(status, cubes), f"HTTP {status}")
 if EXPECT:
     status, cubes = xmla_cubes({"Authorization": good, "X-Forwarded-User": "admin",
-                                "X-Forwarded-Groups": "emondrian-admins"})
+                                "X-Forwarded-Groups": "/emondrian-admins"})
     check("forged X-Forwarded-* with a valid login changes nothing", cubes_ok(status, cubes),
           f"HTTP {status}, cubes {cubes}")
 status, _ = xmla_cubes({"Authorization": basic(USER, secrets.token_urlsafe(18))})

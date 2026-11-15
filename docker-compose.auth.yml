@@ -29,6 +29,9 @@ services:
   emondrian_entry:
     # Reachable only through the gateway
     ports: !reset []
+    volumes:
+      # 32 KB per request header line, as the gateway and eMondrian
+      - ./auth/emondrian/entry-headers.conf:/etc/nginx/conf.d/10-header-buffers.conf:ro
 
   keycloak-db:
     profiles: ["keycloak"]
@@ -124,6 +127,9 @@ services:
       - ./auth/secrets/truststore:/truststore:ro
       - ./auth/secrets/kerberos:/kerberos:ro
       - auth_generated:/generated
+      # Read only to warn about rights and <RoleMember>s that name a group without its path
+      - ./auth/emondrian/mondrian.properties:/check/mondrian.properties:ro
+      - ./schema:/check/schema:ro
     extra_hosts:
       - "${LDAP_EXTRA_HOST:-ldap-extra-host.invalid:127.0.0.1}"
       - "${IDP_EXTRA_HOST:-idp-extra-host.invalid:127.0.0.1}"

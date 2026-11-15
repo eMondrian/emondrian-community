@@ -16,6 +16,7 @@ GATEWAY_CONFIG (default /generated/gateway.json).
 import glob
 import json
 import os
+import re
 import ssl
 import sys
 import time
@@ -564,6 +565,82 @@ def ensure_external_groups_claim(kc):
         kc.call("POST", path, mapper)
     elif current.get("config") != mapper["config"]:
         kc.call("PUT", f"{path}/{current['id']}", dict(mapper, id=current["id"]))
+
+
+def ensure_group_paths(kc):
+    """The groups claim carries full paths ("/Sales/WebAppUsers"); the gateway forwards each as
+    its own name and as the path. The realm file sets this only when the realm is imported, so a
+    realm imported before keeps short names until this runs."""
+    scope = next((s for s in kc.call("GET", "/client-scopes") if s["name"] == "emondrian"), None)
+    if scope is None:
+        raise ConfigError("client scope 'emondrian' missing; run auth/scripts/reimport-realm.sh")
+    path = f"/client-scopes/{scope['id']}/protocol-mappers/models"
+    for mapper in kc.call("GET", path):
+        config = mapper.get("config") or {}
+        if mapper.get("protocolMapper") == "oidc-group-membership-mapper" and config.get("full.path") != "true":
+            mapper["config"] = dict(config, **{"full.path": "true"})
+            kc.call("PUT", f"{path}/{mapper['id']}", mapper)
+            log(f"groups claim ({mapper['name']}): full group paths")
+
+
+PERMISSIONS_FILE = os.environ.get("PERMISSIONS_FILE", "/check/mondrian.properties")
+SCHEMA_DIR = os.environ.get("SCHEMA_DIR", "/check/schema")
+
+
+def group_paths(kc):
+    """Every group of the realm by its full path, subgroups included."""
+    paths = []
+
+    def walk(groups, parent):
+        for g in groups:
+            path = f"{parent}/{g['name']}"
+            paths.append(path)
+            if g.get("subGroupCount", 0) or g.get("subGroups"):
+                walk(kc.call("GET", f"/groups/{g['id']}/children", query={"max": "1000"}), path)
+
+    walk(kc.call("GET", "/groups", query={"briefRepresentation": "false", "max": "1000"}), "")
+    return paths
+
+
+def plain_group_names(paths, names):
+    """(name, [paths]) for every name that is a group's own name written without its path:
+    since groups are forwarded by full path only, such a name matches nobody."""
+    by_name = {}
+    for path in paths:
+        by_name.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+    return [(n, by_name[n]) for n in names if not n.startswith("/") and n in by_name]
+
+
+def warn_plain_group_names(kc):
+    """Groups reach eMondrian by their full path only (/emondrian-admins, /Sales/WebAppUsers). A
+    right in auth/emondrian/mondrian.properties or a schema <RoleMember> that names a group by its
+    plain name grants nothing; this lists every such entry with the path to write. It reads the
+    files and changes nothing: the schemas may be synced from elsewhere."""
+    paths = group_paths(kc)
+    found = 0
+    if os.path.isfile(PERMISSIONS_FILE):
+        with open(PERMISSIONS_FILE, encoding="utf-8", errors="replace") as f:
+            for number, line in enumerate(f, 1):
+                line = line.strip()
+                if line.startswith(("#", "!")) or "=" not in line or not line.startswith("mondrian.security."):
+                    continue
+                key, value = (s.strip() for s in line.split("=", 1))
+                for name, where in plain_group_names(paths, [v.strip() for v in value.split(",") if v.strip()]):
+                    found += 1
+                    log(f"WARNING mondrian.properties line {number}, {key}: group '{name}' by its plain name grants"
+                        f" nothing; write {' or '.join(where)}")
+    for schema in sorted(glob.glob(os.path.join(SCHEMA_DIR, "**", "*.xml"), recursive=True)):
+        with open(schema, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        for match in re.finditer(r"<RoleMember\b[^>]*\bname\s*=\s*[\"']([^\"']*)[\"']", text):
+            for name, where in plain_group_names(paths, [match.group(1).strip()]):
+                found += 1
+                number = text.count("\n", 0, match.start()) + 1
+                log(f"WARNING {os.path.relpath(schema, SCHEMA_DIR)} line {number}: <RoleMember name=\"{name}\"> names a"
+                    f" group by its plain name and applies to nobody; write {' or '.join(where)}")
+    if found:
+        log(f"{found} entr{'y names' if found == 1 else 'ies name'} a group by its plain name: groups are forwarded"
+            " by full path only (auth/README.md, Roles)")
 
 
 def ensure_offline_access_scope(kc):
@@ -1116,9 +1193,9 @@ def write_gateway_config(identity, oidc=None, proxy=None):
             f"as {guest['user']} in {', '.join(guest['groups'])}, without logging in")
     if identity.get("roles") is not None:
         log("WARNING: identity.yml: the roles section (roles.mapping) is not used any more and is "
-            "ignored: groups go to eMondrian as they are; server rights are in "
+            "ignored: groups go to eMondrian by full path; server rights are in "
             "auth/emondrian/mondrian.properties, data roles in the schemas. Remove the section.")
-    log(f"gateway config written: mode {config['mode']}, groups forwarded as they are")
+    log(f"gateway config written: mode {config['mode']}, groups forwarded by full path")
     return config
 
 
@@ -1155,6 +1232,7 @@ def apply():
     apply_realm_policy(kc, policy_settings(identity))
     ensure_user_profile(kc)
     ensure_external_groups_claim(kc)
+    ensure_group_paths(kc)
     ensure_offline_access_scope(kc)
     ensure_gateway_client_urls(kc)
     apply_ldap_sources(kc, identity, realm["id"])
@@ -1163,6 +1241,7 @@ def apply():
     apply_identity_providers(kc, identity)
     apply_mcp(kc, mcp_settings(identity))
     apply_kerberos(kc, identity)
+    warn_plain_group_names(kc)
     apply_kerberos_login(kc, identity)
     write_gateway_config(identity)
     log("identity.yml applied")

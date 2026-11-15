@@ -34,7 +34,7 @@ which the gateway reads on each request, and records the same in `open_access` o
 `auth/identity.yml` (which also names the guest and its groups). From eMondrian modules 0.0.0.106
 the MCP tools `get_open_access` and `set_open_access` switch it too: anybody may switch
 authentication on, only a Keycloak administrator of the realm may switch it off. With authentication **off**, everybody who reaches the port is the user `guest` with
-all rights (`emondrian-admins`); Excel connects with *Windows authentication* and no password, and
+all rights (`/emondrian-admins`); Excel connects with *Windows authentication* and no password, and
 a saved user name and password are ignored. Use it on your own machine or a trusted network only.
 
 With authentication **on**, the first user is `admin` with the password `0`. Open the main page
@@ -100,12 +100,12 @@ and in `auth/emondrian/mondrian.properties`, the AD groups next to the Keycloak 
 [Roles](#roles)):
 
 ```properties
-mondrian.security.schema.write=emondrian-admins,emondrian-editors,BI-Admins
-mondrian.security.schema.read=emondrian-viewers,BI-Users
-mondrian.security.database.manage=emondrian-admins,BI-Admins
-mondrian.security.database.read=emondrian-editors,emondrian-viewers,BI-Users
-mondrian.security.logs.read=emondrian-admins,BI-Admins
-mondrian.security.license.manage=emondrian-admins,BI-Admins
+mondrian.security.schema.write=/emondrian-admins,/emondrian-editors,/BI-Admins
+mondrian.security.schema.read=/emondrian-viewers,/BI-Users
+mondrian.security.database.manage=/emondrian-admins,/BI-Admins
+mondrian.security.database.read=/emondrian-editors,/emondrian-viewers,/BI-Users
+mondrian.security.logs.read=/emondrian-admins,/BI-Admins
+mondrian.security.license.manage=/emondrian-admins,/BI-Admins
 ```
 
 1. A service account that may read users and groups (`bind_dn`). Put its password into
@@ -129,8 +129,13 @@ switches to `jdoe@corp.example.com`. Nested groups count. A disabled account can
 ## Roles
 
 Every user who logs in gets in. The gateway passes the user name and the user's groups on to
-eMondrian as they are (`X-Forwarded-User`, `X-Forwarded-Groups`): the groups of Keycloak and of
-your directory, unchanged. What a user may see and do is decided by eMondrian.
+eMondrian (`X-Forwarded-User`, `X-Forwarded-Groups`): the groups of Keycloak and of your
+directory, each by its **full path**, top-level groups included: `/emondrian-admins`,
+`/Sales/WebAppUsers`. A group is never sent by its own name, so that two groups of the same name
+under different parents (`/A/Team`, `/B/Team`) are never taken for each other. Name a group the
+same way in a right and in a schema's `<RoleMember>`: `<RoleMember name="/Sales/WebAppUsers"/>`.
+A plain name (`emondrian-admins`) matches no group. Membership is not inherited: a right for
+`/Sales` does not reach the members of `/Sales/WebAppUsers`. What a user may see and do is decided by eMondrian.
 
 Every request also carries `X-Forwarded-Access-Token`: the user's Keycloak access token, with
 which a service behind the gateway may call Keycloak as that user (what the user may do there is
@@ -145,13 +150,13 @@ and groups that hold it. Out of the box they name the three groups setup creates
 
 | Group | May |
 |---|---|
-| `emondrian-admins` | everything: edit schemas and catalogs, read logs, install the licence key |
-| `emondrian-editors` | edit schemas, read the catalog registry |
-| `emondrian-viewers` | read schemas and the catalog registry |
+| `/emondrian-admins` | everything: edit schemas and catalogs, read logs, install the licence key |
+| `/emondrian-editors` | edit schemas, read the catalog registry |
+| `/emondrian-viewers` | read schemas and the catalog registry |
 
 Querying data needs no server right. A user in none of these groups (or of the groups you add)
 logs in and queries data, but cannot read or edit schemas, read logs or install a licence key.
-Add your directory's groups to the lines, e.g. `mondrian.security.schema.read=emondrian-viewers,BI-Users`,
+Add your directory's groups to the lines, e.g. `mondrian.security.schema.read=/emondrian-viewers,/BI-Users`,
 then `docker compose up -d --force-recreate eMondrian`: the server reads the file at startup only.
 A higher right includes the lower (`schema.write` includes `schema.read`). The old keys
 `mondrian.security.role.<role>.*` of server 10.0.86 and earlier are not read any more: with one of
@@ -167,7 +172,7 @@ in its `<RoleMember>` elements:
     <SchemaGrant access="none">
         <CubeGrant cube="Sales" access="all"/>
     </SchemaGrant>
-    <RoleMember name="Sales-EMEA"/>      <!-- a group of Keycloak or of your directory -->
+    <RoleMember name="/Sales-EMEA"/>     <!-- a group of Keycloak or of your directory, by its path -->
     <RoleMember name="jdoe"/>            <!-- or a user -->
 </Role>
 ```

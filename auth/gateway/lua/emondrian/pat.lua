@@ -4,7 +4,11 @@
 -- api():    /account/api/tokens, the API of the /account/tokens page; the caller is the browser
 --           session's user, whose groups go with a new token.
 --
--- The owner's groups are stored with the token and forwarded with every use.
+-- The owner's groups are stored with the token and forwarded with every use. They are stored as
+-- forwarded, by full path; a token issued before groups were forwarded by path holds plain names,
+-- and a plain name cannot be told from a same-named group elsewhere ("WebAppUsers" of
+-- /Sales/WebAppUsers against a top-level /WebAppUsers), so such names are dropped: the token
+-- still logs its owner in, with no groups, until the owner issues a new one.
 
 local http     = require("resty.http")
 local cjson    = require("cjson.safe")
@@ -20,7 +24,7 @@ local SERVICE = "http://auth-tokens:8080"
 local PREFIX = "emk_"
 -- A revoked token keeps working for at most this long (the verification cache)
 local CACHE_SECONDS = 30
-local ADMIN_ROLE = "emondrian-admins"
+local ADMIN_ROLE = "/emondrian-admins"
 
 local function hex_sha256(value)
   local hash = sha256:new()
@@ -64,6 +68,19 @@ local function claims_of(owner, groups)
   return { [config.username_claim] = owner, [config.groups_claims[1] or "groups"] = groups }
 end
 
+-- The stored groups that are full paths, and how many plain names were dropped.
+local function path_groups(groups)
+  local kept, dropped = {}, 0
+  for _, group in ipairs(type(groups) == "table" and groups or {}) do
+    if type(group) == "string" and group:sub(1, 1) == "/" then
+      kept[#kept + 1] = group
+    else
+      dropped = dropped + 1
+    end
+  end
+  return kept, dropped
+end
+
 -- Returns claims, or nil (unknown, expired, revoked, or another user's token), or nil and
 -- "unavailable" (the service failed).
 function M.verify(token, user)
@@ -99,8 +116,13 @@ function M.verify(token, user)
     ngx.log(ngx.ERR, "auth-tokens answered HTTP ", res.status)
     return nil, "unavailable"
   end
-  cache:set(key, cjson.encode({ user = entry.user, groups = entry.groups }), CACHE_SECONDS)
-  return claims_of(entry.user, entry.groups)
+  local groups, dropped = path_groups(entry.groups)
+  if dropped > 0 then
+    ngx.log(ngx.WARN, "personal token of ", identity.one_line(entry.user), " was issued before groups were",
+            " forwarded by path: its ", dropped, " group(s) are ignored until the owner issues a new token")
+  end
+  cache:set(key, cjson.encode({ user = entry.user, groups = groups }), CACHE_SECONDS)
+  return claims_of(entry.user, groups)
 end
 
 -- Access phase of /account/api/tokens: the browser session decides who the caller is.
