@@ -176,9 +176,9 @@ Things to try once connected:
 - *"Run this MDX on catalog FoodMart: SELECT {[Measures].[Org Salary]} ON 0 FROM [HR]"*
 - *"Which Mondrian properties are set on this server?"*
 
-**The MCP tools need a licence key that includes the `MCP` module**, and
-`get_csdl` needs `DAX` as well — see [Licence keys](#licence-keys) below. MDX
-over XML/A, the browser client and the editors need no key at all.
+**The MCP tools need no licence key.** A DAX query, `get_csdl` and the Power BI
+report tools need a key including `DAX` — see [Licence keys](#licence-keys)
+below. MDX over XML/A, the browser client and the editors need no key either.
 
 Among the tools: `list_catalogs`, `get_schema`, `get_csdl`, `execute_query`,
 `validate_schema`, `get_cube_authoring_guide`, `get_ossie_guide`, `validate_ossie`, `get_properties`, `save_schema`,
@@ -196,7 +196,7 @@ administrative access.
 `get_csdl` returns one cube's model as Power BI sees it — the same CSDL
 document Power BI Desktop receives on a live connection, so an agent can write
 Power BI report files that name fields the way the model does. It needs a
-licence granting `DAX` as well as `MCP`.
+licence granting `DAX`.
 
 ### Apache Ossie semantic models
 
@@ -455,16 +455,16 @@ Most of this edition needs no key. What each part needs:
 | MDX over `/xmla` — Excel, the browser OLAP client, any MDX client | **None.** Works out of the box |
 | The schema and catalog editors, the logs page | **None** |
 | **Power BI** (Connect live, DAX queries, CSDL metadata) | A key including **`DAX`** |
-| **MCP tools** for AI agents | A key including **`MCP`** |
-| The MCP `get_csdl` tool | **Both** `DAX` and `MCP` — it returns the Power BI model through the DAX module |
+| **MCP tools** for AI agents | **None**, except the rows below |
+| DAX through MCP `execute_query`, `get_csdl`, and the Power BI report tools (`make_project`, `make_page`, `make_visual`, `arrange_page`, `validate_report`) | A key including **`DAX`** — they work through the DAX module |
 | Synthetic catalogs | A key including **`SYNTHETIC`** |
 | **Dashboards** at `/dashboard/` | A key including **`DASHBOARD`** |
 
-A free 30-day evaluation key includes `DAX`, `MCP`, `SYNTHETIC` and `DASHBOARD`:
+A free 30-day evaluation key includes `DAX`, `SYNTHETIC` and `DASHBOARD`:
 **https://emondrian.com/license**
 
 Keys issued before 9 November 2026 don't include `DASHBOARD` (before
-8 November, only `DAX` and `MCP`): request a new one and put it beside the
+8 November, not `SYNTHETIC` either): request a new one and put it beside the
 old one, no restart needed.
 
 Where it goes: put the `.lic` file into the **`modules/` folder next to

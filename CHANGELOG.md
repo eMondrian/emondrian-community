@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+Server `10.0.92` · modules `0.0.0.109` · OLAP Client `1.2.3` · Dashboard `0.1.4` · entry `1.3.2`
+
+Modules `0.0.0.109` (were `0.0.0.108`). The server image, the web tools and the Dashboard are unchanged.
+
+- **MCP tools no longer need a licence key.** A DAX query, `get_csdl` and the Power BI report tools still need a key including `DAX`, synthetic catalogs `SYNTHETIC`, dashboards `DASHBOARD`.
+
 ## 2026.11.15
 
 Server `10.0.92` · modules `0.0.0.108` · OLAP Client `1.2.3` · Dashboard `0.1.4` · entry `1.3.2`
