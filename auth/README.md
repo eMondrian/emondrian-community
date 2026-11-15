@@ -310,8 +310,10 @@ Keycloak's own log (`docker compose logs keycloak`) shows refused logins and loc
 ## Notes
 
 - `docker compose down -v` deletes the volumes, and with them the users kept in Keycloak.
-- The dashboards' server reads data from eMondrian directly, not as the logged-in user: everybody
-  who may open `/dashboard/` sees every dashboard with all its data. Turn them off with
-  `ENABLE_SERVICE_DASHBOARD=false` where data roles matter.
+- Dashboards show data as the person viewing them: the browser reads each visual through the
+  gateway, so that person's roles apply, and a save is checked as the person saving. The
+  dashboards themselves are shared: everybody who may open `/dashboard/` sees every dashboard's
+  definition (titles, queries and any member names written in them). Turn them off with
+  `ENABLE_SERVICE_DASHBOARD=false` where those definitions must not be shared.
 - Secrets are in `.env` and `auth/secrets/`; keep both out of version control and backups others
   can read.

@@ -300,9 +300,11 @@ under **History**.
 Dashboards are kept in the `dashboard_data` volume. They need a key including
 `DASHBOARD` (see [Licence keys](#licence-keys)), which the free evaluation key
 includes; without one the page and the MCP tools say where to get it. With
-authentication on, only logged-in users open them, but the dashboards are
-shared: every user who may open `/dashboard/` sees every dashboard with all its
-data, whatever the roles in the schemas say. To turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
+authentication on, only logged-in users open them. Each visual's data is read by
+the viewer's browser through the gateway, so the viewer's roles in the schemas
+apply, and a save is checked as the person saving. The dashboards themselves are
+shared: every logged-in user sees every dashboard's definition (titles, queries
+and any member names written in them). To turn them off, set `ENABLE_SERVICE_DASHBOARD=false` in `.env` and run
 `docker compose up -d`: the page goes off and the MCP dashboard tools say so.
 
 ---
