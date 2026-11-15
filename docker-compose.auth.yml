@@ -192,6 +192,8 @@ services:
       # Authentication methods accepted on /xmla, /api and /emondrian/mcp
       AUTH_BEARER: ${AUTH_BEARER:-true}
       AUTH_BASIC: ${AUTH_BASIC:-true}
+      # Seconds a token is still accepted past its expiry, for clocks that differ a little (30-60)
+      AUTH_TOKEN_LEEWAY: ${AUTH_TOKEN_LEEWAY:-60}
     volumes:
       # tls.crt (certificate followed by its chain) and tls.key turn HTTPS on
       - ./auth/secrets/tls:/etc/nginx/tls:ro

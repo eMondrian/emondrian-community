@@ -26,6 +26,8 @@ function M.init()
     use_pkce                          = true,
     renew_access_token_on_expiry      = true,
     access_token_expires_leeway       = 30,
+    -- clock leeway for exp/nbf/iat of the tokens the gateway checks (AUTH_TOKEN_LEEWAY)
+    iat_slack                         = config.token_leeway,
     token_signing_alg_values_expected = { "RS256" },
     session_contents                  = { id_token = true, access_token = true },
     -- HTTPS to the provider (oidc-direct) is checked against lua_ssl_trusted_certificate
@@ -106,6 +108,14 @@ function M.verify_access_token(token)
   local claims
   claims, err = openidc.jwt_verify(token, opts)
   if err or not claims then
+    -- lua-resty-openidc puts "jwt signature verification failed: " before every reason, the
+    -- expiry included; say what it was
+    if type(err) == "string" and err:find("'exp' claim expired", 1, true) then
+      return nil, "token expired"
+    end
+    if type(err) == "string" and err:find("'nbf' claim not valid", 1, true) then
+      return nil, "token not valid yet"
+    end
     return nil, err or "invalid token"
   end
   local issuers = config.provider.token_issuers or { discovery.issuer }

@@ -117,6 +117,13 @@ function M.load()
   -- Directory groups and groups of external identity providers (external_groups)
   M.groups_claims  = type(gateway.groups_claims) == "table" and gateway.groups_claims or { "groups" }
   M.default_idp    = type(gateway.default_idp) == "string" and gateway.default_idp or nil
+  -- Seconds an access token is still accepted after its exp (and before its nbf/iat), for clocks
+  -- that differ a little; lua-resty-openidc's own default is 120. AUTH_TOKEN_LEEWAY in .env, 30-60.
+  local leeway = tonumber(env("AUTH_TOKEN_LEEWAY", "60"))
+  if not leeway or leeway < 0 or leeway > 300 then
+    error("AUTH_TOKEN_LEEWAY must be a number of seconds, 30 to 60 recommended")
+  end
+  M.token_leeway = math.floor(leeway)
   -- open_access in identity.yml: the guest every request is while authentication is off
   -- ({enabled, user, groups}); whether it is off is decided per request, see M.open_access_on
   local open = gateway.open_access
