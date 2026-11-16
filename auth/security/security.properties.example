@@ -22,6 +22,10 @@
 #   license.manage                     install the licence key
 #   impersonate.allow                  run a request as another user (XML/A EffectiveUserName,
 #                                      the Power BI gateway); nobody holds it unless listed
+#   dashboard.manage                   administer every dashboard: see, change and delete it and
+#                                      give rights on it; nobody holds it unless listed. Without
+#                                      it a dashboard belongs to its creator and to whoever the
+#                                      creator gives a right (the Dashboard reads this file too)
 #
 # A user matching no line holds mondrian.security.defaultRole; it is left unset here, so such a
 # user gets none of these rights. A right with no line would be open to everyone, so every right
@@ -34,5 +38,6 @@ mondrian.security.database.manage=/emondrian-admins
 mondrian.security.database.read=/emondrian-editors,/emondrian-viewers
 mondrian.security.logs.read=/emondrian-admins
 mondrian.security.license.manage=/emondrian-admins
+mondrian.security.dashboard.manage=/emondrian-admins
 #mondrian.security.impersonate.allow=
 #mondrian.security.defaultRole=

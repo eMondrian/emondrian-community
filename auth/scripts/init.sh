@@ -200,6 +200,13 @@ else
         echo "written from auth/security/security.properties.example (the default rights per group)"
     fi
 fi
+# Dashboard administrators (2026.11.xx): a file from before has no dashboard.manage line, and without
+# it nobody administers dashboards. Added once, to /emondrian-admins; edit or empty it as you like.
+if ! grep -Eq '^[[:space:]]*mondrian\.security\.dashboard\.manage[[:space:]]*[=:]' "$SECURITY_FILE"; then
+    printf '\n# Added by %s on %s: who administers every dashboard (see the example).\nmondrian.security.dashboard.manage=/emondrian-admins\n' \
+        "$(basename "$0")" "$(date -u +%Y-%m-%d)" >> "$SECURITY_FILE"
+    echo "added: mondrian.security.dashboard.manage=/emondrian-admins (dashboard administrators)"
+fi
 
 if ! $START; then
     echo

@@ -687,6 +687,13 @@ else {
         Write-Host "auth/security/security.properties: written from the example (the default rights per group)"
     }
 }
+# Dashboard administrators: a file from before has no dashboard.manage line, and without it nobody
+# administers dashboards. Added once, to /emondrian-admins; edit or empty it as you like.
+if (-not (Select-String -Path $SecurityFile -Pattern '^\s*mondrian\.security\.dashboard\.manage\s*[=:]' -Quiet)) {
+    $Added = "`n# Added by windows-setup.ps1 on $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')): who administers every dashboard (see the example).`nmondrian.security.dashboard.manage=/emondrian-admins`n"
+    [System.IO.File]::AppendAllText($SecurityFile, $Added)
+    Write-Host "auth/security/security.properties: added mondrian.security.dashboard.manage=/emondrian-admins (dashboard administrators)"
+}
 
 $AuthState = (& (Join-Path $ScriptDir "auth/scripts/authentication.ps1") status | Out-String).Trim()
 

@@ -1,7 +1,7 @@
 services:
 
   eMondrian:
-    image: emondrian/emondrian:10.0.93
+    image: emondrian/emondrian:10.0.94
     container_name: emondrian_service
     volumes:
       - ./logs:/usr/local/tomcat/logs
@@ -112,7 +112,7 @@ services:
   # Dashboards an AI agent builds through MCP, at /dashboard/. Needs a licence key with the
   # DASHBOARD module in ./modules; without one it answers with where to get a key.
   dashboard:
-    image: emondrian/dashboard:0.1.4
+    image: emondrian/dashboard:0.2.0
     container_name: emondrian_dashboard
     restart: unless-stopped
     environment:

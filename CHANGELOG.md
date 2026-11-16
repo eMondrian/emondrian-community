@@ -16,11 +16,14 @@ release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1
 
 ## Unreleased
 
-Server `10.0.93` · modules `0.0.0.109` · OLAP Client `1.2.3` · Dashboard `0.1.4` · entry `1.3.2`
+Server `10.0.94` · modules `0.0.0.110` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
 
-Server `10.0.93` (was `10.0.92`). The modules, the web tools and the Dashboard are unchanged.
+Server `10.0.94` (was `10.0.92`), modules `0.0.0.110` (was `0.0.0.109`), Dashboard `0.2.0` (was `0.1.4`). The web tools are unchanged.
 
 - **The levels Power Query names in a parent-child hierarchy work in MDX.** Power Query (Power BI import, Excel's "From Analysis Services") names the levels of a parent-child hierarchy `Level 01`, `Level 02`, … (for example FoodMart HR's `Employees`); the server now answers `[Employees].[Level 01].MEMBERS`, `.ALLMEMBERS` and `DESCENDANTS(…, [Employees].[Level 07], LEAVES)`, the queries Power Query sends to import such a table.
+- **Dashboards have rights** (with authentication on). A new dashboard belongs to the person who created it: they and the dashboard administrators (`mondrian.security.dashboard.manage` in `auth/security/security.properties`, `/emondrian-admins` by default) may see, change and delete it and give other users, groups or everyone signed in the right to view or to edit it (**Share…** on the dashboard, or the MCP tool `set_dashboard_access`). The creator's and the administrators' own rights cannot be taken away. For someone without a right the dashboard does not exist: its link answers *not found*. Someone who may only view it cannot change it. Every change of rights made through MCP is written to `logs/mcp-audit.log`, whatever `emondrian.mcp.audit` says. Dashboards created before have no creator: the administrators own them and everyone signed in may view them. Without authentication nothing changes: everyone may use every dashboard.
+
+  **Upgrading:** `./setup.sh` (Windows: `windows-setup.ps1`) adds `mondrian.security.dashboard.manage=/emondrian-admins` to your `auth/security/security.properties` once, when it has no such line, and prints it.
 - **A Cancel from Excel or Power BI gets a normal answer.** It used to answer with the error "The query was canceled by user."; client cancels are now one line in `logs/mondrian.log` instead of an error with a stack trace.
 - **Server rights are in one file, `auth/security/security.properties`**, the only place the server reads them from (`-Demondrian.security.file`). It is mounted read-only, so nothing reachable over the network can change it, the MCP tool `set_security` included, and an edit applies at the next request without a restart. Setup creates it from `auth/security/security.properties.example` and never overwrites it; git ignores it. `mondrian.security.*` lines in `auth/emondrian/mondrian.properties` and `-Dmondrian.security.*` options in `.env` are ignored from now on (the server log names any it finds).
 
