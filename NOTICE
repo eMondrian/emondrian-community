@@ -33,12 +33,17 @@ licenses.
 3. eMondrian modules
 
    The module files in modules/ - emondrian-dax-*-obf.jar,
-   emondrian-mcp-*.jar, emondrian-license-*.jar - are proprietary and are NOT
-   covered by the Eclipse Public License.
+   emondrian-mcp-*.jar, emondrian-license-*.jar, emondrian-synthetic-*.jar -
+   are proprietary and are NOT covered by the Eclipse Public License.
    Copyright (C) 2025-2026 Sergei Semenkov. All rights reserved.
-   Use of the DAX and MCP modules requires a valid eMondrian license key
-   (a free 30-day evaluation key or a commercial license). Terms are provided
-   with the commercial license; contact contact@bisolutions.dev.
+   They are distributed free of charge. DAX queries (including the MCP tools
+   get_csdl and the Power BI report tools), synthetic catalogs and dashboards
+   require a valid eMondrian license key (a free 30-day evaluation key or a
+   commercial license); the other MCP tools and the license module require
+   none. Terms are provided with the commercial license; contact
+   contact@bisolutions.dev.
+   emondrian-mcp-*.jar also contains third-party open-source libraries (among
+   them the MCP Java SDK and Jackson), each under its own license.
 
 4. Third-party libraries
 

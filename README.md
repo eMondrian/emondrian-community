@@ -14,7 +14,8 @@ It provides an analytical layer on top of relational databases, allowing users t
 - Aggregate caching and query acceleration
 - JDBC-based compatibility with multiple SQL databases
 - Open and extensible architecture
-- Suitable for embedded analytics and lightweight BI use cases
+- Sign-in through Keycloak, Active Directory or LDAP, with rights per group and data roles in the schemas
+- MCP tools for AI agents, acting as the signed-in user
 
 ---
 
@@ -533,21 +534,31 @@ EPL-1.0 — see `LICENSE` and `NOTICE` (the modules in `modules/` are proprietar
 
 ---
 
-## Community vs Enterprise Edition
+## Community, Commercial License and Enterprise
 
-- **Community Edition**
-  - Core OLAP and MDX functionality
-  - Free and open-source
-  - Intended for evaluation, development, and embedded analytics
+- **Community Edition** — free; the server is open source (EPL-1.0)
+  - OLAP and MDX engine; Excel through XML/A; Schema Editor, Catalog Editor, OLAP Client
+  - Authentication gateway with Keycloak: sign-in through Keycloak, Active Directory or LDAP;
+    server rights per group; roles in the schemas decide which data each user sees
+  - MCP tools for AI agents, acting as the signed-in user; OAuth for MCP; personal access
+    tokens; an audit log of MCP traffic
+  - HTTPS
+  - Help through GitHub issues
 
-- **Enterprise Edition**
-  - Advanced security and access control
-  - Monitoring and operational features
-  - Commercial support and enterprise integrations
+- **Commercial License** — per server, per year
+  - Keys for the DAX module (Power BI live connection), synthetic catalogs and dashboards
+  - Updates and security fixes
+  - Email support in business hours
 
-More information: https://bisolutions.dev
+- **Enterprise** — everything in the Commercial License, plus
+  - Priority support
+  - DAX compatibility work for your Power BI reports
+  - Help with deployment, upgrades and performance tuning
+  - A direct channel to the engineering team
+  - Production, test and development environments
+
+Prices and terms: https://emondrian.com/pricing
 
 ---
 
-Maintained by the eMondrian Team  
-https://bisolutions.dev
+Maintained by the eMondrian Team at [BIS](https://bisolutions.dev/about)
