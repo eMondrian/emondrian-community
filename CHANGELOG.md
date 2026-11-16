@@ -22,6 +22,18 @@ Server `10.0.93` (was `10.0.92`). The modules, the web tools and the Dashboard a
 
 - **The levels Power Query names in a parent-child hierarchy work in MDX.** Power Query (Power BI import, Excel's "From Analysis Services") names the levels of a parent-child hierarchy `Level 01`, `Level 02`, … (for example FoodMart HR's `Employees`); the server now answers `[Employees].[Level 01].MEMBERS`, `.ALLMEMBERS` and `DESCENDANTS(…, [Employees].[Level 07], LEAVES)`, the queries Power Query sends to import such a table.
 - **A Cancel from Excel or Power BI gets a normal answer.** It used to answer with the error "The query was canceled by user."; client cancels are now one line in `logs/mondrian.log` instead of an error with a stack trace.
+- **Server rights are in one file, `auth/security/security.properties`**, the only place the server reads them from (`-Demondrian.security.file`). It is mounted read-only, so nothing reachable over the network can change it, the MCP tool `set_security` included, and an edit applies at the next request without a restart. Setup creates it from `auth/security/security.properties.example` and never overwrites it; git ignores it. `mondrian.security.*` lines in `auth/emondrian/mondrian.properties` and `-Dmondrian.security.*` options in `.env` are ignored from now on (the server log names any it finds).
+
+  **Upgrading:** the first `./setup.sh` (Windows: `windows-setup.ps1`) after `git pull` moves your current rights from `auth/emondrian/mondrian.properties` into the new file and prints them. If you edited that file, `git pull` stops with *"Your local changes to the following files would be overwritten by merge: auth/emondrian/mondrian.properties"*. Then run:
+
+  ```bash
+  cp auth/emondrian/mondrian.properties auth/emondrian/mondrian.properties.mine
+  git checkout auth/emondrian/mondrian.properties
+  git pull
+  ./setup.sh
+  ```
+
+  On Windows the same with `Copy-Item` for `cp` and `.\windows-setup.ps1`. Setup takes your rights from `mondrian.properties.mine`. Any other setting you changed in that file has to be copied back by hand.
 - README, NOTICE and a new SECURITY.md: what each edition includes, which modules need a key, and how to report a vulnerability.
 
 ## 2026.11.16

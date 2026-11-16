@@ -107,7 +107,7 @@ sources:
     …
 ```
 
-and in `auth/emondrian/mondrian.properties`, the AD groups next to the Keycloak groups (see
+and in `auth/security/security.properties`, the AD groups next to the Keycloak groups (see
 [Roles](#roles)):
 
 ```properties
@@ -131,8 +131,8 @@ mondrian.security.license.manage=/emondrian-admins,/BI-Admins
    `auth/secrets/truststore/` (e.g. `corp-ca.pem`).
 3. If the domain controller's name is not in DNS: `LDAP_EXTRA_HOST=dc01.corp.example.com:10.0.0.10`
    in `.env`, then `docker compose up -d`.
-4. `./auth/scripts/apply-config.sh`, then `./auth/scripts/check-config.sh jdoe`; after editing
-   `mondrian.properties`, `docker compose up -d --force-recreate eMondrian`.
+4. `./auth/scripts/apply-config.sh`, then `./auth/scripts/check-config.sh jdoe`. An edit of
+   `security.properties` applies at the next request, without a restart.
 
 Users log in with their account name (`jdoe`); `attributes: username_attribute: userPrincipalName`
 switches to `jdoe@corp.example.com`. Nested groups count. A disabled account cannot log in.
@@ -189,8 +189,13 @@ and answers nothing without it (`GATEWAY_ONLY`), so it cannot be used around the
 eMondrian's MCP tools send it when they call the Dashboard. The web tools never receive it. To change it, edit the value in `.env` and run `docker compose up -d`; the
 gateway and eMondrian restart with the new one.
 
-**Server rights** are in `auth/emondrian/mondrian.properties`, one line per right naming the users
-and groups that hold it. Out of the box they name the three groups setup creates in Keycloak:
+**Server rights** are in `auth/security/security.properties`, one line per right naming the users
+and groups that hold it. It is the only place the server reads them from
+(`-Demondrian.security.file` in `docker-compose.auth.yml`). Setup creates it from
+`auth/security/security.properties.example` when it is missing and never overwrites it, and git
+ignores it, so `git pull` leaves your rights alone. The folder is mounted read-only: nothing
+reachable over the network can change it, the MCP tool `set_security` included. Out of the box
+the rights name the three groups setup creates in Keycloak:
 
 | Group | May |
 |---|---|
@@ -201,12 +206,12 @@ and groups that hold it. Out of the box they name the three groups setup creates
 Querying data needs no server right. A user in none of these groups (or of the groups you add)
 logs in and queries data, but cannot read or edit schemas, read logs or install a licence key.
 Add your directory's groups to the lines, e.g. `mondrian.security.schema.read=/emondrian-viewers,/BI-Users`,
-then `docker compose up -d --force-recreate eMondrian`: the server reads the file at startup only.
-A higher right includes the lower (`schema.write` includes `schema.read`). The old keys
-`mondrian.security.role.<role>.*` of server 10.0.86 and earlier are not read any more: with one of
-them left in the file the server denies every right. Do not set `-Dmondrian.security.*` options
-on `JAVA_TOOL_OPTIONS` in `.env` (`.env.example` shows them for a server without authentication):
-they override this file.
+and save: the server reads the file again at the next request, no restart. A higher right
+includes the lower (`schema.write` includes `schema.read`). Only `mondrian.security.*` lines
+belong in the file: any other key, a misspelled one or one of the old keys
+`mondrian.security.role.<role>.*` makes the server deny every right and log an ERROR in
+`logs/mondrian.log`. `mondrian.security.*` lines in `mondrian.properties` and
+`-Dmondrian.security.*` options in `.env` are ignored.
 
 **Which data a user sees** is set in the schemas. A `<Role>` applies to the users and groups named
 in its `<RoleMember>` elements:
@@ -291,7 +296,7 @@ password rule for users kept in Keycloak, and the Basic cache.
 |---|---|
 | `auth/identity.yml`, or a file it names | `./auth/scripts/apply-config.sh` |
 | `.env` (`PUBLIC_URL`, ports, …) | `docker compose up -d` |
-| `auth/emondrian/mondrian.properties` | `docker compose up -d --force-recreate eMondrian` |
+| `auth/security/security.properties` | nothing: applies at the next request |
 | A renewed certificate | replace the files, `docker compose restart auth_gateway` |
 
 `docker compose …` includes the authentication services through `COMPOSE_FILE` in `.env`.

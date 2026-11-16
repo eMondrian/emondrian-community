@@ -19,6 +19,7 @@ services:
         -Demondrian.security.trustForwardedUser=true
         -Demondrian.mcp.authStateFile=/etc/emondrian-auth-state/open_access.json
         -Demondrian.mcp.keycloak.url=http://keycloak:8080/auth
+        -Demondrian.security.file=/etc/emondrian/security/security.properties
       # The gateway's secret: X-Forwarded-User/-Groups are believed only on requests carrying it,
       # so a caller around the gateway (the host, another container) cannot name itself a user.
       EMONDRIAN_FORWARDED_SECRET: ${EMONDRIAN_FORWARDED_SECRET:?set EMONDRIAN_FORWARDED_SECRET in .env - run ./auth/scripts/init.sh --no-start once, it keeps your settings}
@@ -26,8 +27,11 @@ services:
       - ./auth/emondrian/web.xml:/usr/local/tomcat/webapps/emondrian/WEB-INF/web.xml:ro
       # open_access.json: whether authentication is off; written here (MCP set_open_access)
       - ./auth/state:/etc/emondrian-auth-state
-      # Server-level permissions (schema write, logs, licence) per AD group
       - ./auth/emondrian/mondrian.properties:/usr/local/tomcat/webapps/emondrian/WEB-INF/classes/mondrian.properties:ro
+      # Server rights (schema, catalog registry, logs, licence) per group: the only place they are
+      # read from, the folder read-only so nothing on the network can change them; read again on
+      # every check, so an edit applies without a restart (auth/security/security.properties)
+      - ./auth/security:/etc/emondrian/security:ro
 
   dashboard:
     # Answers only requests through the gateway (or from eMondrian's MCP tools), recognised by the
@@ -138,7 +142,7 @@ services:
       - ./auth/secrets/kerberos:/kerberos:ro
       - auth_generated:/generated
       # Read only to warn about rights and <RoleMember>s that name a group without its path
-      - ./auth/emondrian/mondrian.properties:/check/mondrian.properties:ro
+      - ./auth/security:/check/security:ro
       - ./schema:/check/schema:ro
     extra_hosts:
       - "${LDAP_EXTRA_HOST:-ldap-extra-host.invalid:127.0.0.1}"

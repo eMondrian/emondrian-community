@@ -640,7 +640,7 @@ def ensure_group_paths(kc):
             log(f"groups claim ({mapper['name']}): full group paths")
 
 
-PERMISSIONS_FILE = os.environ.get("PERMISSIONS_FILE", "/check/mondrian.properties")
+PERMISSIONS_FILE = os.environ.get("PERMISSIONS_FILE", "/check/security/security.properties")
 SCHEMA_DIR = os.environ.get("SCHEMA_DIR", "/check/schema")
 
 
@@ -670,7 +670,7 @@ def plain_group_names(paths, names):
 
 def warn_plain_group_names(kc):
     """Groups reach eMondrian by their full path only (/emondrian-admins, /Sales/WebAppUsers). A
-    right in auth/emondrian/mondrian.properties or a schema <RoleMember> that names a group by its
+    right in auth/security/security.properties or a schema <RoleMember> that names a group by its
     plain name grants nothing; this lists every such entry with the path to write. It reads the
     files and changes nothing: the schemas may be synced from elsewhere."""
     paths = group_paths(kc)
@@ -684,7 +684,7 @@ def warn_plain_group_names(kc):
                 key, value = (s.strip() for s in line.split("=", 1))
                 for name, where in plain_group_names(paths, [v.strip() for v in value.split(",") if v.strip()]):
                     found += 1
-                    log(f"WARNING mondrian.properties line {number}, {key}: group '{name}' by its plain name grants"
+                    log(f"WARNING security.properties line {number}, {key}: group '{name}' by its plain name grants"
                         f" nothing; write {' or '.join(where)}")
     for schema in sorted(glob.glob(os.path.join(SCHEMA_DIR, "**", "*.xml"), recursive=True)):
         with open(schema, encoding="utf-8", errors="replace") as f:
@@ -1331,7 +1331,7 @@ def write_gateway_config(identity, oidc=None, proxy=None, owner_check=None):
     if identity.get("roles") is not None:
         log("WARNING: identity.yml: the roles section (roles.mapping) is not used any more and is "
             "ignored: groups go to eMondrian by full path; server rights are in "
-            "auth/emondrian/mondrian.properties, data roles in the schemas. Remove the section.")
+            "auth/security/security.properties, data roles in the schemas. Remove the section.")
     log(f"gateway config written: mode {config['mode']}, groups forwarded by full path")
     return config
 

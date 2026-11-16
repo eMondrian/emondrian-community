@@ -623,7 +623,7 @@ else {
 # Quick start (windows-setup.ps1): users kept in Keycloak itself. Add users in Keycloak's admin
 # console ($WebBase/auth/admin/, realm "emondrian", user "admin" with KEYCLOAK_ADMIN_PASSWORD
 # from .env) and put them into the groups below; what each group may do on the server is set in
-# auth/emondrian/mondrian.properties. For your Active Directory, see
+# auth/security/security.properties. For your Active Directory, see
 # auth/identity.example.yml.
 sources:
   - name: local
@@ -646,6 +646,46 @@ open_access:
     $State = "{`n  ""enabled"": true,`n  ""changed_by"": ""windows-setup.ps1"",`n  ""changed_at"": ""$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))""`n}`n"
     [System.IO.File]::WriteAllText((Join-Path $ScriptDir "auth/state/open_access.json"), $State)
     Write-Host "auth/identity.yml: written (local administrator admin, authentication OFF)"
+}
+
+# Server rights live in auth/security/security.properties only (-Demondrian.security.file). Created
+# once, never overwritten. Until 2026.11.16 they were mondrian.security.* lines in
+# auth/emondrian/mondrian.properties: the first run after the update moves them over, from
+# mondrian.properties.mine when git pull stopped on local changes (CHANGELOG), else from the file.
+# Same as auth/scripts/init.sh on Linux.
+$SecurityFile = Join-Path $ScriptDir "auth/security/security.properties"
+$SecurityExample = Join-Path $ScriptDir "auth/security/security.properties.example"
+$RightPattern = '^\s*mondrian\.security\.'
+if (Test-Path $SecurityFile) {
+    Write-Host "auth/security/security.properties: already exists, kept"
+}
+else {
+    New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir "auth/security") | Out-Null
+    $MigrateFrom = $null
+    foreach ($Candidate in @("auth/emondrian/mondrian.properties.mine", "auth/emondrian/mondrian.properties")) {
+        $CandidatePath = Join-Path $ScriptDir $Candidate
+        if ((Test-Path $CandidatePath) -and (Select-String -Path $CandidatePath -Pattern $RightPattern -Quiet)) {
+            $MigrateFrom = $Candidate
+            break
+        }
+    }
+    if ($MigrateFrom) {
+        $Header = @(Get-Content $SecurityExample | Where-Object { $_ -match '^#' })
+        # trustForwardedUser is a start-up option, not a right: in this file it would deny every right
+        $Rights = @(Get-Content (Join-Path $ScriptDir $MigrateFrom) |
+            Where-Object { $_ -match $RightPattern -and $_ -notmatch 'mondrian\.security\.trustForwardedUser' })
+        $Lines = $Header + @("#", "# Moved here from $MigrateFrom by windows-setup.ps1 on $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')).") + $Rights
+        [System.IO.File]::WriteAllText($SecurityFile, (($Lines -join "`n") + "`n"))
+        Write-Host "auth/security/security.properties: your server rights, moved from ${MigrateFrom}:"
+        $Rights | ForEach-Object { Write-Host "    $_" }
+        if ($MigrateFrom -eq "auth/emondrian/mondrian.properties") {
+            Write-Host "    the mondrian.security.* lines left in $MigrateFrom are ignored from now on"
+        }
+    }
+    else {
+        Copy-Item $SecurityExample $SecurityFile
+        Write-Host "auth/security/security.properties: written from the example (the default rights per group)"
+    }
 }
 
 $AuthState = (& (Join-Path $ScriptDir "auth/scripts/authentication.ps1") status | Out-String).Trim()

@@ -500,7 +500,8 @@ Excel, Power BI, scripts and MCP agents send the user name and password (HTTP
 Basic). Users come from Keycloak itself, from your Active Directory or another
 LDAP directory, or both. Every user who logs in gets in; eMondrian receives the
 user name and groups and decides the rest: server rights per group in
-`auth/emondrian/mondrian.properties` (out of the box `/emondrian-admins` may do
+`auth/security/security.properties`, the one place they are read from, applied without a
+restart (out of the box `/emondrian-admins` may do
 everything, `/emondrian-editors` edit schemas, `/emondrian-viewers` read them), and
 roles in the schemas decide which data each user sees. Groups are named by their
 full path, `/emondrian-admins` or `/Sales/WebAppUsers`, never by a plain name.

@@ -138,7 +138,7 @@ else
 # Quick start (auth/scripts/init.sh): users kept in Keycloak itself. Add users in Keycloak's admin
 # console ($PUBLIC_URL/auth/admin/, realm "emondrian", user "admin" with KEYCLOAK_ADMIN_PASSWORD
 # from .env) and put them into the groups below; what each group may do on the server is set in
-# auth/emondrian/mondrian.properties. For your Active Directory, see
+# auth/security/security.properties. For your Active Directory, see
 # auth/identity.example.yml.
 sources:
   - name: local
@@ -161,6 +161,44 @@ EOF
         "$OPEN" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > auth/state/open_access.json
     chmod 644 auth/state/open_access.json
     echo "written: source local, administrator $ADMIN_USER, authentication $($OPEN && echo "OFF (open_access)" || echo on)"
+fi
+
+# --- security.properties ------------------------------------------------------------------------
+# Server rights live in auth/security/security.properties only (-Demondrian.security.file). Created
+# once, never overwritten. Until 2026.11.16 they were mondrian.security.* lines in
+# auth/emondrian/mondrian.properties: the first run after the update moves them over, from
+# mondrian.properties.mine when git pull stopped on local changes (CHANGELOG), else from the file.
+step "auth/security/security.properties"
+SECURITY_FILE=auth/security/security.properties
+if [ -f "$SECURITY_FILE" ]; then
+    echo "already exists: kept"
+else
+    mkdir -p auth/security
+    MIGRATE_FROM=""
+    for candidate in auth/emondrian/mondrian.properties.mine auth/emondrian/mondrian.properties; do
+        if [ -f "$candidate" ] && grep -Eq '^[[:space:]]*mondrian\.security\.' "$candidate"; then
+            MIGRATE_FROM="$candidate"
+            break
+        fi
+    done
+    if [ -n "$MIGRATE_FROM" ]; then
+        {
+            grep -E '^#' auth/security/security.properties.example
+            echo "#"
+            echo "# Moved here from $MIGRATE_FROM by $(basename "$0") on $(date -u +%Y-%m-%d)."
+            # trustForwardedUser is a start-up option, not a right: in this file it would deny every right
+            grep -E '^[[:space:]]*mondrian\.security\.' "$MIGRATE_FROM" | grep -v 'mondrian\.security\.trustForwardedUser' || true
+        } > "$SECURITY_FILE"
+        chmod 644 "$SECURITY_FILE"
+        echo "written: your server rights, moved from $MIGRATE_FROM:"
+        grep -E '^[[:space:]]*mondrian\.security\.' "$SECURITY_FILE" | sed 's/^/    /'
+        if [ "$MIGRATE_FROM" = auth/emondrian/mondrian.properties ]; then
+            echo "    the mondrian.security.* lines left in $MIGRATE_FROM are ignored from now on"
+        fi
+    else
+        install -m 644 auth/security/security.properties.example "$SECURITY_FILE"
+        echo "written from auth/security/security.properties.example (the default rights per group)"
+    fi
 fi
 
 if ! $START; then

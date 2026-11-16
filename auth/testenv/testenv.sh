@@ -225,7 +225,7 @@ test_profile() {
             expect_check "$p" erin BI-Modelers
             expect_check "$p" carol refused               # in no allowed group of the source
             expect_check "$p" dave refused                # disabled
-            # Server rights name groups in auth/emondrian/mondrian.properties; the AD groups are not
+            # Server rights name groups in auth/security/security.properties; the AD groups are not
             # there, so an AD user logs in but may not read the logs (emondrian-admins may: local)
             logs_check "$p" alice 403 ;;
         open)

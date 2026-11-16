@@ -6,4 +6,6 @@ share/
 auth/secrets/
 auth/identity.yml
 auth/state/
+auth/security/security.properties
+auth/emondrian/mondrian.properties.mine
 __pycache__/

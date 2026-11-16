@@ -1,0 +1,38 @@
+# Server rights: who may read or save schemas, read or change the catalog registry, read the logs,
+# install licence keys and run a request as another user. This file is the only place they are
+# read from (-Demondrian.security.file in docker-compose.auth.yml); mondrian.properties and
+# -Dmondrian.security.* options are ignored.
+#
+# setup.sh / windows-setup.ps1 create auth/security/security.properties from this example when it
+# is missing and never overwrite it; git ignores it, so git pull never touches your rights. The
+# server mounts the folder read-only: nothing reachable over the network can write it (MCP
+# set_security included). A change applies at the next request, without a restart. Edit it on
+# the host; an editor that saves by replacing the file is fine.
+#
+# Each right lists the users and groups that hold it, as the auth gateway forwards them. A group
+# is named by its full path, top-level groups included: /emondrian-admins, /Sales/WebAppUsers; a
+# plain name (emondrian-admins) matches no group. /emondrian-admins, /emondrian-editors and
+# /emondrian-viewers are the groups setup creates in Keycloak; add your Active Directory groups to
+# the lines, e.g. schema.read=...,/BI-Users. A higher right includes the lower: schema.write
+# includes schema.read, database.manage includes database.read.
+#
+#   schema.read / schema.write         read or save schemas (editors, MCP get_schema / save_schema)
+#   database.read / database.manage    read or change the catalog registry and data sources
+#   logs.read                          server logs (/logs, MCP read_logs)
+#   license.manage                     install the licence key
+#   impersonate.allow                  run a request as another user (XML/A EffectiveUserName,
+#                                      the Power BI gateway); nobody holds it unless listed
+#
+# A user matching no line holds mondrian.security.defaultRole; it is left unset here, so such a
+# user gets none of these rights. A right with no line would be open to everyone, so every right
+# is listed; an empty value (logs.read=) gives a right to nobody. Only mondrian.security.* lines
+# belong here: any other key, or a misspelled one, makes the server deny every right and log an
+# ERROR (logs/mondrian.log).
+mondrian.security.schema.write=/emondrian-admins,/emondrian-editors
+mondrian.security.schema.read=/emondrian-viewers
+mondrian.security.database.manage=/emondrian-admins
+mondrian.security.database.read=/emondrian-editors,/emondrian-viewers
+mondrian.security.logs.read=/emondrian-admins
+mondrian.security.license.manage=/emondrian-admins
+#mondrian.security.impersonate.allow=
+#mondrian.security.defaultRole=

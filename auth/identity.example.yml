@@ -66,7 +66,7 @@ sources:
 
 # Every user who logs in gets in. Groups go to eMondrian by full path (X-Forwarded-Groups), and
 # eMondrian decides what each user may see and do: server rights per group in
-# auth/emondrian/mondrian.properties, data roles per group or user in the schemas
+# auth/security/security.properties, data roles per group or user in the schemas
 # (<RoleMember name="/Sales-EMEA"/>).
 
 # Authentication off: everybody who reaches the server gets in without logging in (browser,

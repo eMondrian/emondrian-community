@@ -3,7 +3,7 @@
 --
 -- The groups go to eMondrian as the identity source reports them. Every authenticated user gets
 -- in; what a user may see and do is eMondrian's decision: server rights in
--- auth/emondrian/mondrian.properties, data roles (<RoleMember>) in the schemas.
+-- auth/security/security.properties, data roles (<RoleMember>) in the schemas.
 
 local config = require("emondrian.config")
 
