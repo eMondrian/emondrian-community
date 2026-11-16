@@ -14,6 +14,16 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+Server `10.0.93` · modules `0.0.0.109` · OLAP Client `1.2.3` · Dashboard `0.1.4` · entry `1.3.2`
+
+Server `10.0.93` (was `10.0.92`). The modules, the web tools and the Dashboard are unchanged.
+
+- **The levels Power Query names in a parent-child hierarchy work in MDX.** Power Query (Power BI import, Excel's "From Analysis Services") names the levels of a parent-child hierarchy `Level 01`, `Level 02`, … (for example FoodMart HR's `Employees`); the server now answers `[Employees].[Level 01].MEMBERS`, `.ALLMEMBERS` and `DESCENDANTS(…, [Employees].[Level 07], LEAVES)`, the queries Power Query sends to import such a table.
+- **A Cancel from Excel or Power BI gets a normal answer.** It used to answer with the error "The query was canceled by user."; client cancels are now one line in `logs/mondrian.log` instead of an error with a stack trace.
+- README, NOTICE and a new SECURITY.md: what each edition includes, which modules need a key, and how to report a vulnerability.
+
 ## 2026.11.16
 
 Server `10.0.92` · modules `0.0.0.109` · OLAP Client `1.2.3` · Dashboard `0.1.4` · entry `1.3.2`
