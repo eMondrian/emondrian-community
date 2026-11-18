@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.18
+
+Server `10.0.95` · modules `0.0.0.110` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
+
+Server `10.0.95` (was `10.0.94`). Everything else is unchanged.
+
+- **A filter under row-level security gives the right answer.** For a user whose role sees only part of a hierarchy with `rollupPolicy="partial"` (for example only the state CA), a filter on a value the role hides or on a value that does not exist (`'Store'[Store.Store State] = "WA"` in DAX, a Power BI slicer or filter, or an MDX subselect) was ignored, and the user got their own total instead of an empty result. Nothing hidden was shown, but the number did not match the filter. Such a filter now gives an empty result; filters on values the role sees, and everything without a role, are unchanged.
+
 ## 2026.11.16.1
 
 Server `10.0.94` · modules `0.0.0.110` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
