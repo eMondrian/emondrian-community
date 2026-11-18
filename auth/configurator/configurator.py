@@ -959,6 +959,25 @@ def tokens_settings(identity):
             "max_days": days["max_lifetime"], "max_per_user": int(section.get("max_per_user", 10))}
 
 
+def xmla_links_settings(identity):
+    """xmla_links in identity.yml: a personal XML/A address with a token in it,
+    <PUBLIC_URL>/xmla?emondrian_token=…, for clients that send no credentials of their own (Power
+    BI Desktop's live connection). One per user; a new one replaces the old. Default: on, 30 days."""
+    section = identity.get("xmla_links")
+    if section is False:
+        section = {"enabled": False}
+    section = section or {}
+    if not isinstance(section, dict):
+        raise ConfigError("identity.yml: xmla_links must be a section (enabled, lifetime)")
+    unknown = set(section) - {"enabled", "lifetime"}
+    if unknown:
+        raise ConfigError(f"identity.yml: unknown xmla_links setting(s): {', '.join(sorted(unknown))}")
+    seconds = duration(section.get("lifetime", "30d"), "xmla_links.lifetime")
+    if seconds < 86400 or seconds % 86400 or seconds > 365 * 86400:
+        raise ConfigError("identity.yml: xmla_links.lifetime must be whole days, 1d to 365d, e.g. 30d")
+    return {"enabled": bool(section.get("enabled", True)), "days": seconds // 86400}
+
+
 def open_access_settings(identity):
     """open_access in identity.yml: everybody gets in without logging in, as one guest user in
     the groups listed (a demo or an evaluation; `roles` is the former name of `groups`). Sources stay configured, so switching it off
@@ -993,7 +1012,8 @@ def write_tokens_settings(identity):
     path = os.path.join(os.path.dirname(GATEWAY_CONFIG), "tokens.json")
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(tokens_settings(identity), f)
+        links = xmla_links_settings(identity)
+        json.dump(dict(tokens_settings(identity), links_enabled=links["enabled"], link_days=links["days"]), f)
     os.chmod(tmp, 0o644)
     os.replace(tmp, path)
 
@@ -1289,6 +1309,8 @@ def gateway_config(identity):
     return {
         "mode": identity["mode"],
         "personal_tokens": tokens_settings(identity)["enabled"],
+        # /xmla?emondrian_token=… (Power BI Desktop's live connection)
+        "xmla_links": xmla_links_settings(identity)["enabled"],
         # 401 on MCP points to the OAuth metadata (Protected Resource Metadata)
         "mcp_oauth": mcp_settings(identity)["oauth"],
         # XML/A and the API offer and accept Negotiate (Kerberos)

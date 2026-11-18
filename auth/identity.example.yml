@@ -77,6 +77,12 @@ open_access:
   user: guest
   groups: [emondrian-admins]
 
+# XML/A links: <PUBLIC_URL>/xmla?emondrian_token=…, a personal address for Power BI Desktop's live
+# connection, which sends no saved password. One per user; a new one replaces the old. Defaults shown.
+#xmla_links:
+#  enabled: true
+#  lifetime: 30d             # 1d to 365d, whole days
+
 # Sessions, lockout, Basic cache. Durations: 45s, 30m, 10h, 2d. Defaults shown.
 #policy:
 #  password: length(8) and notUsername   # new passwords of users kept in Keycloak

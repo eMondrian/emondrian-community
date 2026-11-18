@@ -2,7 +2,8 @@
 --
 -- web(): browser pages; redirect to the Keycloak login when there is no session.
 -- api(): /xmla, /api, /emondrian/mcp; the credentials the request carries decide the method
---        (Bearer token, Basic, or else the browser session). No redirect: 401 with a challenge.
+--        (an XML/A link's ?emondrian_token=, Bearer token, Basic, or else the browser session).
+--        No redirect: 401 with a challenge.
 --
 -- Both end with identity.set(), which fills the X-Forwarded-User / X-Forwarded-Groups headers.
 
@@ -14,6 +15,7 @@ local pat      = require("emondrian.pat")
 local mcp      = require("emondrian.mcp")
 local kerberos = require("emondrian.kerberos")
 local proxy    = require("emondrian.trusted_proxy")
+local link     = require("emondrian.link")
 
 local M = {}
 
@@ -100,6 +102,7 @@ local function open_access()
   ngx.var.auth_groups = table.concat(identity.group_names(guest.groups), ",")
   ngx.var.auth_method = "open"
   ngx.req.clear_header("Authorization")
+  link.strip()
 end
 
 -- X-Forwarded-Access-Token on every endpoint (XML/A, the API, MCP, the web tools): the user's
@@ -164,14 +167,55 @@ local header_methods = {
   end,
 }
 
+-- 401 for an XML/A link that failed: no challenge, since no other credentials will be taken
+-- with it. The reason goes to the log only; the client is told what to do.
+local function link_refused(token, reason)
+  link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(token) .. " from " .. ngx.var.remote_addr .. " refused: " .. reason)
+  link.count_failure()
+  ngx.status = ngx.HTTP_UNAUTHORIZED
+  ngx.header["Content-Type"] = "text/plain; charset=utf-8"
+  ngx.header["Cache-Control"] = "no-store"
+  ngx.say("This eMondrian link has expired or is no longer valid. Sign in to eMondrian and get a new"
+          .. " link on " .. config.public_url .. "/account/tokens")
+  return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+end
+
+-- /xmla?emondrian_token=…: the link decides alone, whatever else the request carries.
+local function api_with_link(token)
+  link.strip()
+  if link.too_many_failures() then
+    link.raw_log(ngx.NOTICE, "XML/A link from " .. ngx.var.remote_addr .. " not checked: too many refused links")
+    ngx.header["Retry-After"] = "60"
+    return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
+  end
+  local claims, reason = link.verify(token)
+  if reason == "unavailable" then
+    return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+  end
+  if not claims or not identity.set(claims, "link") then
+    return link_refused(token, reason or "no user")
+  end
+  ngx.req.clear_header("Authorization")
+end
+
 function M.api()
   -- CORS pre-flights carry no credentials; the entry container answers them without data
   if ngx.req.get_method() == "OPTIONS" then
+    link.strip()
     return
   end
 
   if config.open_access_on() then
     return open_access()
+  end
+
+  -- XML/A links are for /xmla only; anywhere else the parameter is dropped unread
+  local token = link.from_request()
+  if token then
+    if ngx.var.uri:find("^/xmla/?$") then
+      return api_with_link(token)
+    end
+    link.strip()
   end
 
   local header = ngx.var.http_authorization

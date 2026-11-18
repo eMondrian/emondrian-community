@@ -1,8 +1,9 @@
 -- Personal access tokens (emk_…), kept by the auth-tokens service.
 --
 -- verify(): a token sent as the Basic password (user name: the owner's) or as a Bearer token.
--- api():    /account/api/tokens, the API of the /account/tokens page; the caller is the browser
---           session's user, whose groups go with a new token.
+-- api():    /account/api/tokens and /account/api/link (XML/A links, link.lua), the API of the
+--           /account/tokens page; the caller is the browser session's user, whose groups go with
+--           a new token.
 --
 -- Mode broker: at every use whose verification is not cached (at most 30 s) the owner is looked
 -- up in Keycloak (owner.lua): a deleted or disabled owner's tokens are refused, and the token
@@ -210,6 +211,8 @@ function M.api()
   ngx.req.set_header("X-Token-User", user)
   ngx.req.set_header("X-Token-Groups", table.concat(groups, ","))
   ngx.req.set_header("X-Token-Admin", admin and "true" or "false")
+  -- An XML/A link is this address plus /xmla, never the Host the browser sent
+  ngx.req.set_header("X-Public-Url", config.public_url)
 end
 
 return M

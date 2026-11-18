@@ -14,6 +14,10 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+- **Power BI live connection with authentication on: XML/A links.** Power BI Desktop's *Connect live* does not send a saved user name and password, so it could not connect to a server with authentication on (import mode and Excel could). A signed-in user now gets a personal address, `https://<server>/xmla?emondrian_token=…`, with **Get link** on the main page or on `/account/tokens`, and uses it as the server name. One link per user: a new one replaces the old. It expires after 30 days (`xmla_links` in `auth/identity.yml`), and an expired, replaced, revoked or altered link answers 401. The gateway removes the token before the request reaches eMondrian and masks it in its access log. See *XML/A links* in `auth/README.md`. Run `docker compose up -d --build` to rebuild the gateway and the token service.
+
 ## 2026.11.16.1
 
 Server `10.0.94` · modules `0.0.0.110` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`

@@ -120,6 +120,8 @@ function M.load()
 
   -- Personal access tokens (emk_…), as the Basic password or a Bearer token
   M.personal_tokens = gateway.personal_tokens ~= false
+  -- XML/A links, /xmla?emondrian_token=eml_… (Power BI Desktop's live connection)
+  M.xmla_links = gateway.xmla_links ~= false
   -- OAuth for MCP clients (Protected Resource Metadata, Keycloak as authorization server)
   M.mcp_oauth = gateway.mcp_oauth == true
   -- Kerberos (Negotiate) on XML/A and the API
@@ -178,12 +180,13 @@ function M.open_access_on()
       if type(decoded) == "table" and type(decoded.enabled) == "boolean" then
         value = decoded.enabled
       else
-        ngx.log(ngx.ERR, STATE_FILE, " holds no \"enabled\": true|false; authentication stays on")
+        require("emondrian.log").out_of_request(ngx.ERR, STATE_FILE .. " holds no \"enabled\": true|false; authentication stays on")
         value = false
       end
     end
     if value ~= state_cache.value and state_cache.at >= 0 then
-      ngx.log(ngx.WARN, "open access switched ", value and "ON (authentication off)" or "OFF (authentication on)")
+      -- Out of the request: its request line may hold an XML/A link's token (link.lua)
+      require("emondrian.log").out_of_request(ngx.WARN, "open access switched " .. (value and "ON (authentication off)" or "OFF (authentication on)"))
     end
     state_cache.at, state_cache.value = now, value
   end
