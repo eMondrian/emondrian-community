@@ -11,6 +11,23 @@ SHA-256 only and shown once, when it is created.
     DELETE /tokens/<id>                           revoke (own, or any for admins)
     POST   /verify           {"token", "user"?}   owner and groups of a valid token
     GET    /health
+
+XML/A links (eml_…): one per user, for clients that keep the server address but no credentials
+(Power BI Desktop's live connection). The token goes in the address,
+<PUBLIC_URL>/xmla?emondrian_token=<token>; creating a link replaces the user's previous one, which
+stops working at once.
+
+    POST   /link             {"days"?, "replace"?}  create (or replace) the caller's link
+    GET    /link                                  the caller's link: created, expires, last used
+    DELETE /link                                  revoke the caller's link
+
+With X-Token-Target (and X-Token-Target-Groups) the three act on that user's link instead: an
+administrator's MCP tool (create_link) issues a link for a user who never shares a password. The
+caller checks that it may; this service trusts the header as it trusts X-Token-User, from holders
+of the secret only (the gateway strips any copy a browser sends). Replacing another user's active
+link needs "replace": true, since it breaks whatever uses it.
+    POST   /verify-link      {"token"}            owner and groups of a valid link; 404 with a
+                                                  reason (unknown or expired) for the gateway log
 """
 import datetime
 import hashlib
@@ -27,8 +44,12 @@ DB = os.environ.get("TOKENS_DB", "/data/tokens.db")
 SECRET = hashlib.sha256(b"emondrian-tokens\0" + os.environ["SESSION_SECRET"].encode()).hexdigest()
 # personal_tokens in identity.yml, written by auth-config
 SETTINGS_FILE = os.environ.get("TOKENS_SETTINGS", "/generated/tokens.json")
-DEFAULTS = {"enabled": True, "default_days": 90, "max_days": 365, "max_per_user": 10}
+DEFAULTS = {"enabled": True, "default_days": 90, "max_days": 365, "max_per_user": 10,
+            "links_enabled": True, "link_days": 30}
 PREFIX = "emk_"
+LINK_PREFIX = "eml_"
+# eml_ + 32 random bytes in base64url: letters, digits, - and _, nothing to escape in a URL
+LINK_FORMAT = re.compile(r"eml_[A-Za-z0-9_-]{43}")
 
 
 def settings():
@@ -56,6 +77,20 @@ def connect():
         last_used TEXT,
         revoked TEXT)""")
     db.execute("CREATE INDEX IF NOT EXISTS tokens_owner ON tokens(owner)")
+    # One XML/A link per user: a new one replaces the row. An expired row stays until then, so
+    # that the gateway can log "expired" rather than "unknown".
+    db.execute("""CREATE TABLE IF NOT EXISTS links (
+        owner TEXT PRIMARY KEY COLLATE NOCASE,
+        hash TEXT NOT NULL UNIQUE,
+        groups TEXT NOT NULL,
+        created TEXT NOT NULL,
+        expires TEXT NOT NULL,
+        last_used TEXT)""")
+    # Who made a link (an administrator for another user); null: the user themselves
+    try:
+        db.execute("ALTER TABLE links ADD COLUMN created_by TEXT")
+    except sqlite3.OperationalError:
+        pass  # already there
     db.commit()
     return db
 
@@ -109,6 +144,12 @@ class Handler(BaseHTTPRequestHandler):
     def trusted(self):
         return hmac.compare_digest(self.headers.get("X-Tokens-Secret", ""), SECRET)
 
+    def target(self):
+        """The user a link call is for: X-Token-Target when a trusted caller names one, else None."""
+        target = (self.headers.get("X-Token-Target") or "").strip()
+        groups = [g for g in (self.headers.get("X-Token-Target-Groups") or "").split(",") if g]
+        return (target, groups) if target else (None, [])
+
     def caller(self):
         user = (self.headers.get("X-Token-User") or "").strip()
         groups = [g for g in (self.headers.get("X-Token-Groups") or "").split(",") if g]
@@ -120,6 +161,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.trusted():
             return self.reply(403, {"error": "forbidden"})
         user, _, admin = self.caller()
+        if user and self.path == "/link":
+            return self.get_link(self.target()[0] or user)
         if not user or not self.path.startswith("/tokens"):
             return self.reply(404, {"error": "not found"})
         everyone = admin and self.path.endswith("?all=1")
@@ -141,6 +184,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "invalid request"})
         if self.path == "/verify":
             return self.verify(data)
+        if self.path == "/verify-link":
+            return self.verify_link(data)
+        if self.path == "/link":
+            return self.create_link(data)
         if self.path != "/tokens":
             return self.reply(404, {"error": "not found"})
         user, groups, _ = self.caller()
@@ -192,10 +239,88 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, {"user": row["owner"], "groups": json.loads(row["groups"]), "expires": row["expires"],
                          "id": row["id"]})
 
+    def get_link(self, user):
+        limits = settings()
+        with LOCK:
+            row = DBH.execute("SELECT * FROM links WHERE owner = ?", (user,)).fetchone()
+        link = None
+        if row is not None:
+            link = {"created": row["created"], "expires": row["expires"], "last_used": row["last_used"],
+                    "expired": row["expires"] <= iso(now()), "created_by": row["created_by"]}
+        self.reply(200, {"user": user, "link": link, "enabled": limits["links_enabled"],
+                         "days": limits["link_days"]})
+
+    def create_link(self, data):
+        caller, groups, _ = self.caller()
+        if not caller:
+            return self.reply(400, {"error": "no user"})
+        target, target_groups = self.target()
+        user, groups = (target, target_groups) if target else (caller, groups)
+        created_by = caller if target and target.lower() != caller.lower() else None
+        limits = settings()
+        if not limits["links_enabled"]:
+            return self.reply(403, {"error": "XML/A links are turned off"})
+        try:
+            days = int(data.get("days") or limits["link_days"])
+        except (TypeError, ValueError):
+            return self.reply(400, {"error": "days must be a number"})
+        if not 1 <= days <= limits["link_days"]:
+            return self.reply(400, {"error": f"days must be between 1 and {limits['link_days']}"})
+        token = LINK_PREFIX + secrets.token_urlsafe(32)
+        created = now()
+        expires = iso(created + datetime.timedelta(days=days))
+        with LOCK:
+            if created_by and not data.get("replace"):
+                active = DBH.execute("SELECT 1 FROM links WHERE owner = ? AND expires > ?",
+                                     (user, iso(created))).fetchone()
+                if active:
+                    return self.reply(409, {"error": f"{user} has an active link; a new one stops it working in every"
+                                                     " report and dashboard that uses it. Send replace: true to do"
+                                                     " that anyway."})
+            replaced = DBH.execute("DELETE FROM links WHERE owner = ?", (user,)).rowcount
+            DBH.execute("INSERT INTO links (owner, hash, groups, created, expires, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+                        (user, digest(token), json.dumps(groups), iso(created), expires, created_by))
+            DBH.commit()
+        print(f"XML/A link {'replaced' if replaced else 'created'} for {user}"
+              + (f" by {created_by}" if created_by else "") + f", expires {expires}", flush=True)
+        base = (self.headers.get("X-Public-Url") or "").rstrip("/")
+        self.reply(201, {"user": user, "token": token, "url": f"{base}/xmla?emondrian_token={token}" if base else None,
+                         "created": iso(created), "expires": expires, "replaced": bool(replaced),
+                         "created_by": created_by})
+
+    def verify_link(self, data):
+        token = str(data.get("token") or "")
+        if not LINK_FORMAT.fullmatch(token):
+            return self.reply(404, {"reason": "malformed"})
+        if not settings()["links_enabled"]:
+            return self.reply(404, {"reason": "links turned off"})
+        stamp = iso(now())
+        with LOCK:
+            row = DBH.execute("SELECT * FROM links WHERE hash = ?", (digest(token),)).fetchone()
+            if row is None:
+                # Never issued, replaced by a newer link, or revoked
+                return self.reply(404, {"reason": "unknown or replaced"})
+            if row["expires"] <= stamp:
+                return self.reply(404, {"reason": "expired", "user": row["owner"]})
+            DBH.execute("UPDATE links SET last_used = ? WHERE owner = ?", (stamp, row["owner"]))
+            DBH.commit()
+        expires_at = int(datetime.datetime.fromisoformat(row["expires"].replace("Z", "+00:00")).timestamp())
+        self.reply(200, {"user": row["owner"], "groups": json.loads(row["groups"]), "expires": row["expires"],
+                         "expires_at": expires_at})
+
     def do_DELETE(self):
         if not self.trusted():
             return self.reply(403, {"error": "forbidden"})
         user, _, admin = self.caller()
+        if user and self.path == "/link":
+            owner = self.target()[0] or user
+            with LOCK:
+                gone = DBH.execute("DELETE FROM links WHERE owner = ?", (owner,)).rowcount
+                DBH.commit()
+            if gone:
+                print(f"XML/A link of {owner} revoked" + (f" by {user}" if owner.lower() != user.lower() else ""),
+                      flush=True)
+            return self.reply(200, {"revoked": bool(gone)})
         match = re.fullmatch(r"/tokens/(\d+)", self.path)
         if not user or not match:
             return self.reply(404, {"error": "not found"})

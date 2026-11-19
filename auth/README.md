@@ -260,6 +260,44 @@ chooses otherwise (at most 365, `personal_tokens` in `identity.yml`). A user who
 external identity provider and is not kept in Keycloak cannot use personal tokens (see *External
 identity providers* above).
 
+### XML/A links (Power BI live connection)
+
+Power BI Desktop's **Connect live** to an Analysis Services address does not send a saved user
+name and password: after the server's first 401 it asks again without them and gives up. Import
+mode and Excel do send them. For a live connection each user can instead get a personal address
+with a token in it:
+
+```
+https://bi.example.com/xmla?emondrian_token=eml_…
+```
+
+A signed-in user gets it with **Get link** on the main page or on `PUBLIC_URL/account/tokens`, and
+enters it in Power BI as the server name. The link signs the request in as that user, with the
+user's current groups (checked in Keycloak as for personal tokens). It is shown once; the server
+keeps only its SHA-256.
+
+- **One link per user.** Getting a new one replaces the old one, which stops working within 30
+  seconds; so does **Revoke**. Reports that use the old link need the new address.
+- **It expires** after 30 days (`xmla_links.lifetime` in `identity.yml`, 1d to 365d). Expiry is
+  checked on every request, so an open report stops at its next query.
+- **Every failure is a 401:** an unknown, altered, replaced, revoked or expired link, or an owner
+  who no longer exists or is disabled. The link decides alone: a request whose link fails is
+  refused even if it carries other credentials, and a valid link wins over them. The answer says
+  to get a new link; the reason is in the gateway log only. After 20 refused links in a minute
+  from one address the gateway answers 429 for a minute without checking.
+- **Only on `/xmla`.** Elsewhere the parameter is dropped unread. The gateway removes it before the
+  request goes on, so eMondrian never sees it, and the access log shows `emondrian_token=***`.
+  nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
+  arrived, token included: keep the gateway's container log as private as the server itself.
+- **Treat it like a password.** Anyone who has the address queries the server as its owner, and
+  Power BI keeps it in the `.pbix` file: a report shared as a file shares the link. Share reports
+  through the Power BI service with its own credentials instead, or have each person get their own
+  link.
+
+Turn links off with `xmla_links: false` (or `enabled: false` under `xmla_links:`) in
+`identity.yml` and `auth/scripts/apply-config.sh`. Check them end to end with
+`auth/tests/check_xmla_link.py`.
+
 ## HTTPS
 
 HTTPS is on once `auth/secrets/tls/` holds:

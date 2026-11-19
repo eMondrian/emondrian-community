@@ -938,6 +938,56 @@ def apply_realm_policy(kc, policy):
             f"{'after ' + str(lockout['failures']) + ' failures' if lockout else 'off'}")
 
 
+def smtp_settings(identity):
+    """smtp in identity.yml: the mail server Keycloak sends its e-mails through (mode broker), so
+    that a new user chooses their own password from a link in an e-mail (the MCP tool
+    send_password_email, or create_user with send_password_email) and nobody else ever knows it.
+    None when there is no smtp section: the realm's mail settings are then left as they are."""
+    section = identity.get("smtp")
+    if section in (None, False):
+        return None
+    if not isinstance(section, dict):
+        raise ConfigError("identity.yml: smtp must be a section (host, port, from, ...)")
+    known = {"host", "port", "from", "from_name", "reply_to", "security", "user", "password_file"}
+    unknown = set(section) - known
+    if unknown:
+        raise ConfigError(f"identity.yml: unknown smtp setting(s): {', '.join(sorted(unknown))}")
+    for key in ("host", "from"):
+        if not section.get(key):
+            raise ConfigError(f"identity.yml: smtp.{key} is required")
+    security = str(section.get("security", "starttls")).lower()
+    if security not in ("starttls", "ssl", "none"):
+        raise ConfigError("identity.yml: smtp.security must be starttls, ssl or none")
+    port = int(section.get("port", {"starttls": 587, "ssl": 465, "none": 25}[security]))
+    if (section.get("user") is None) != (section.get("password_file") is None):
+        raise ConfigError("identity.yml: smtp.user and smtp.password_file go together")
+    password = None
+    if section.get("password_file"):
+        password = read_secret({"name": "smtp", **section}, "password_file")
+    return {"host": str(section["host"]), "port": port, "from": str(section["from"]),
+            "from_name": str(section.get("from_name", "eMondrian")), "reply_to": section.get("reply_to"),
+            "security": security, "user": section.get("user"), "password": password}
+
+
+def apply_smtp(kc, smtp):
+    """The realm's mail server (Keycloak's smtpServer), from smtp in identity.yml."""
+    if smtp is None:
+        return
+    server = {"host": smtp["host"], "port": str(smtp["port"]), "from": smtp["from"],
+              "fromDisplayName": smtp["from_name"],
+              "starttls": str(smtp["security"] == "starttls").lower(), "ssl": str(smtp["security"] == "ssl").lower(),
+              "auth": str(smtp["user"] is not None).lower()}
+    if smtp["reply_to"]:
+        server["replyTo"] = str(smtp["reply_to"])
+    if smtp["user"] is not None:
+        server.update({"user": str(smtp["user"]), "password": smtp["password"]})
+    kc.call("PUT", "", {"smtpServer": server})
+    log(f"smtp: {smtp['host']}:{smtp['port']} ({smtp['security']}"
+        f"{', as ' + str(smtp['user']) if smtp['user'] is not None else ''}), from {smtp['from']}")
+    if smtp["security"] == "none" and smtp["user"] is not None:
+        log("smtp: a password over a connection without TLS; use starttls or ssl unless the server is on this host")
+
+
 def tokens_settings(identity):
     """personal_tokens in identity.yml: tokens users create for Excel, Power BI, scripts and MCP."""
     section = identity.get("personal_tokens")
@@ -957,6 +1007,25 @@ def tokens_settings(identity):
         raise ConfigError("identity.yml: personal_tokens.default_lifetime is longer than max_lifetime")
     return {"enabled": bool(section.get("enabled", True)), "default_days": days["default_lifetime"],
             "max_days": days["max_lifetime"], "max_per_user": int(section.get("max_per_user", 10))}
+
+
+def xmla_links_settings(identity):
+    """xmla_links in identity.yml: a personal XML/A address with a token in it,
+    <PUBLIC_URL>/xmla?emondrian_token=…, for clients that send no credentials of their own (Power
+    BI Desktop's live connection). One per user; a new one replaces the old. Default: on, 30 days."""
+    section = identity.get("xmla_links")
+    if section is False:
+        section = {"enabled": False}
+    section = section or {}
+    if not isinstance(section, dict):
+        raise ConfigError("identity.yml: xmla_links must be a section (enabled, lifetime)")
+    unknown = set(section) - {"enabled", "lifetime"}
+    if unknown:
+        raise ConfigError(f"identity.yml: unknown xmla_links setting(s): {', '.join(sorted(unknown))}")
+    seconds = duration(section.get("lifetime", "30d"), "xmla_links.lifetime")
+    if seconds < 86400 or seconds % 86400 or seconds > 365 * 86400:
+        raise ConfigError("identity.yml: xmla_links.lifetime must be whole days, 1d to 365d, e.g. 30d")
+    return {"enabled": bool(section.get("enabled", True)), "days": seconds // 86400}
 
 
 def open_access_settings(identity):
@@ -993,7 +1062,8 @@ def write_tokens_settings(identity):
     path = os.path.join(os.path.dirname(GATEWAY_CONFIG), "tokens.json")
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(tokens_settings(identity), f)
+        links = xmla_links_settings(identity)
+        json.dump(dict(tokens_settings(identity), links_enabled=links["enabled"], link_days=links["days"]), f)
     os.chmod(tmp, 0o644)
     os.replace(tmp, path)
 
@@ -1289,6 +1359,8 @@ def gateway_config(identity):
     return {
         "mode": identity["mode"],
         "personal_tokens": tokens_settings(identity)["enabled"],
+        # /xmla?emondrian_token=… (Power BI Desktop's live connection)
+        "xmla_links": xmla_links_settings(identity)["enabled"],
         # 401 on MCP points to the OAuth metadata (Protected Resource Metadata)
         "mcp_oauth": mcp_settings(identity)["oauth"],
         # XML/A and the API offer and accept Negotiate (Kerberos)
@@ -1341,6 +1413,7 @@ def write_gateway_config(identity, oidc=None, proxy=None, owner_check=None):
 def apply():
     identity = load_identity()
     gateway_config(identity)  # validate roles/claims (and kerberos, mcp, policy) before changing anything
+    smtp_settings(identity)
     if identity["mode"] == "trusted-proxy":
         proxy = proxy_config(identity)
         how = (f"JWT in {proxy['jwt_header']} signed with {proxy['jwks_url']}" if proxy["jwt_header"]
@@ -1376,6 +1449,7 @@ def apply():
     apply_local_users(kc, identity)
     ensure_admins_realm_admin(kc)
     apply_password_policy(kc, policy_settings(identity))
+    apply_smtp(kc, smtp_settings(identity))
     apply_identity_providers(kc, identity)
     apply_mcp(kc, mcp_settings(identity))
     apply_kerberos(kc, identity)

@@ -2,7 +2,9 @@
 --
 -- web(): browser pages; redirect to the Keycloak login when there is no session.
 -- api(): /xmla, /api, /emondrian/mcp; the credentials the request carries decide the method
---        (Bearer token, Basic, or else the browser session). No redirect: 401 with a challenge.
+--        (an XML/A link's ?emondrian_token=, Bearer token, Basic, the browser session, or on /xmla
+--        a link's cookie from a dashboard opened with the link).
+--        No redirect: 401 with a challenge.
 --
 -- Both end with identity.set(), which fills the X-Forwarded-User / X-Forwarded-Groups headers.
 
@@ -14,8 +16,11 @@ local pat      = require("emondrian.pat")
 local mcp      = require("emondrian.mcp")
 local kerberos = require("emondrian.kerberos")
 local proxy    = require("emondrian.trusted_proxy")
+local link     = require("emondrian.link")
 
 local M = {}
+
+local link_web
 
 function M.init()
   require("emondrian.hosts").init()
@@ -100,6 +105,7 @@ local function open_access()
   ngx.var.auth_groups = table.concat(identity.group_names(guest.groups), ",")
   ngx.var.auth_method = "open"
   ngx.req.clear_header("Authorization")
+  link.strip()
 end
 
 -- X-Forwarded-Access-Token on every endpoint (XML/A, the API, MCP, the web tools): the user's
@@ -164,14 +170,55 @@ local header_methods = {
   end,
 }
 
+-- 401 for an XML/A link that failed: no challenge, since no other credentials will be taken
+-- with it. The reason goes to the log only; the client is told what to do.
+local function link_refused(token, reason)
+  link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(token) .. " from " .. ngx.var.remote_addr .. " refused: " .. reason)
+  link.count_failure()
+  ngx.status = ngx.HTTP_UNAUTHORIZED
+  ngx.header["Content-Type"] = "text/plain; charset=utf-8"
+  ngx.header["Cache-Control"] = "no-store"
+  ngx.say("This eMondrian link has expired or is no longer valid. Sign in to eMondrian and get a new"
+          .. " link on " .. config.public_url .. "/account/tokens")
+  return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+end
+
+-- /xmla?emondrian_token=…: the link decides alone, whatever else the request carries.
+local function api_with_link(token)
+  link.strip()
+  if link.too_many_failures() then
+    link.raw_log(ngx.NOTICE, "XML/A link from " .. ngx.var.remote_addr .. " not checked: too many refused links")
+    ngx.header["Retry-After"] = "60"
+    return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
+  end
+  local claims, reason = link.verify(token)
+  if reason == "unavailable" then
+    return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+  end
+  if not claims or not identity.set(claims, "link") then
+    return link_refused(token, reason or "no user")
+  end
+  ngx.req.clear_header("Authorization")
+end
+
 function M.api()
   -- CORS pre-flights carry no credentials; the entry container answers them without data
   if ngx.req.get_method() == "OPTIONS" then
+    link.strip()
     return
   end
 
   if config.open_access_on() then
     return open_access()
+  end
+
+  -- XML/A links are for /xmla only; anywhere else the parameter is dropped unread
+  local token = link.from_request()
+  if token then
+    if ngx.var.uri:find("^/xmla/?$") then
+      return api_with_link(token)
+    end
+    link.strip()
   end
 
   local header = ngx.var.http_authorization
@@ -200,6 +247,21 @@ function M.api()
     -- The browser OLAP client calls /xmla with the session cookie of the page it runs on
     method = "session"
     claims = oidc.session("deny")
+    -- A dashboard opened with an XML/A link runs its MDX here with the link's cookie (link.lua)
+    if not claims and link.cookie() and link.cookie_path(ngx.var.uri) then
+      local cookie = link.cookie()
+      local reason
+      claims, reason = link.verify(cookie)
+      if reason == "unavailable" then
+        return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+      end
+      if not claims then
+        link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
+                     .. " refused: " .. tostring(reason))
+        return login_required()
+      end
+      method = "link"
+    end
   end
 
   if not identity.set(claims, method) then
@@ -230,6 +292,63 @@ local function web_through_proxy()
   end
 end
 
+-- An XML/A link opened on a dashboard page, or a dashboard request with the link's cookie (link.lua).
+-- Returns true when it decided the request; false leaves it to the sign-in session as usual.
+link_web = function()
+  local token = link.from_request()
+  if token then
+    link.strip()
+    if not link.dashboard_page(ngx.var.uri) then
+      token = nil  -- elsewhere the parameter is dropped unread
+    end
+  end
+  if token then
+    if link.too_many_failures() then
+      ngx.header["Retry-After"] = "60"
+      return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
+    end
+    local claims, expires = link.verify(token)
+    if expires == "unavailable" then
+      return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+    end
+    if not claims then
+      return link_refused(token, expires or "no user")
+    end
+    -- The token goes into a cookie; the address the browser keeps has none
+    link.set_cookie(token, expires)
+    ngx.header["Cache-Control"] = "no-store"
+    ngx.header["Referrer-Policy"] = "no-referrer"
+    return ngx.redirect(ngx.var.uri, ngx.HTTP_MOVED_TEMPORARILY)
+  end
+
+  local cookie = link.cookie()
+  if not cookie then
+    return false
+  end
+  if ngx.var.uri == "/logout" then
+    link.clear_cookie()
+    return false
+  end
+  if not link.cookie_path(ngx.var.uri) then
+    return false  -- other pages: the sign-in as usual
+  end
+  -- A sign-in session in the same browser wins
+  if oidc.session("deny") then
+    return false
+  end
+  local claims, reason = link.verify(cookie)
+  if reason == "unavailable" then
+    return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+  end
+  if not claims or not identity.set(claims, "link") then
+    link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
+                 .. " ended: " .. tostring(reason))
+    link.clear_cookie()
+    return false
+  end
+  return true
+end
+
 function M.web()
   if config.open_access_on() then
     -- No login, so nothing to log out of or to come back to
@@ -240,6 +359,9 @@ function M.web()
   end
   if config.mode == "trusted-proxy" then
     return web_through_proxy()
+  end
+  if link_web() then
+    return
   end
   local claims, err = oidc.session()
   if err then

@@ -11,6 +11,9 @@ local cjson  = require("cjson.safe")
 local config   = require("emondrian.config")
 local identity = require("emondrian.identity")
 
+-- Also called on the XML/A link path, whose request line holds the token; ngx.log would add it
+local raw_log = require("emondrian.log").out_of_request
+
 local M = {}
 
 local TOKEN_KEY = "owner-check:service-token"
@@ -37,7 +40,7 @@ local function service_token()
   })
   local body = res and res.status == 200 and cjson.decode(res.body)
   if type(body) ~= "table" or type(body.access_token) ~= "string" then
-    ngx.log(ngx.ERR, "owner check: no service token from Keycloak (", err or (res and ("HTTP " .. res.status)) or "?", ")")
+    raw_log(ngx.ERR, "owner check: no service token from Keycloak (" .. tostring(err or (res and ("HTTP " .. res.status)) or "?") .. ")")
     return nil
   end
   local ttl = (tonumber(body.expires_in) or 60) - 30
@@ -70,7 +73,7 @@ function M.current(user)
   local users, err = get(check.users .. "?" .. ngx.encode_args({ username = user, exact = "true",
                                                                    briefRepresentation = "false" }), token)
   if type(users) ~= "table" then
-    ngx.log(ngx.ERR, "owner check: user lookup failed (", err or "?", ")")
+    raw_log(ngx.ERR, "owner check: user lookup failed (" .. tostring(err or "?") .. ")")
     return nil, "unavailable"
   end
   local found
@@ -89,7 +92,7 @@ function M.current(user)
   groups, err = get(check.users .. "/" .. found.id .. "/groups?" .. ngx.encode_args({ briefRepresentation = "true",
                                                                                       max = "1000" }), token)
   if type(groups) ~= "table" then
-    ngx.log(ngx.ERR, "owner check: group lookup failed (", err or "?", ")")
+    raw_log(ngx.ERR, "owner check: group lookup failed (" .. tostring(err or "?") .. ")")
     return nil, "unavailable"
   end
   local paths = {}
