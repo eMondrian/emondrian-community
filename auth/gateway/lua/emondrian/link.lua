@@ -11,6 +11,15 @@
 -- for personal tokens (mode broker, owner.lua, fail closed). The token never goes further: it is
 -- removed from the query string before the request is proxied, and the access log masks it
 -- ($request_masked, nginx.conf).
+--
+-- The same link opens a dashboard in a browser: <PUBLIC_URL>/dashboard/d/<id>?emondrian_token=eml_…
+-- The gateway checks it, puts it in a cookie (HttpOnly, Secure, SameSite Lax, never longer than
+-- the link or 12 h) and redirects to the address without it, so the token leaves the address bar
+-- and the history; the page's own requests (its files, its API calls, its MDX on /xmla) carry the
+-- cookie. With that cookie and no sign-in session, /dashboard and /xmla act as the link's user,
+-- with that user's rights and roles, as Power BI does with the link; other pages need a sign-in.
+-- The cookie goes through verify() on every request, so a replaced, revoked or expired link, or
+-- an owner disabled in Keycloak, ends the browser session within the 30 s cache too.
 
 local http     = require("resty.http")
 local cjson    = require("cjson.safe")
@@ -28,6 +37,9 @@ local M = {}
 M.raw_log = raw_log
 
 local SERVICE = "http://auth-tokens:8080"
+M.COOKIE = "emondrian_link"
+-- A browser keeps a link's session at most this long, and never past the link's expiry
+local COOKIE_SECONDS = 12 * 3600
 local PARAM = "emondrian_token"
 -- eml_ + 32 random bytes in base64url (auth/tokens/tokens.py)
 local FORMAT = "^eml_[A-Za-z0-9_-]+$"
@@ -104,6 +116,36 @@ local function claims_of(user, groups)
   return { [config.username_claim] = user, [config.groups_claims[1] or "groups"] = groups }
 end
 
+-- Whether a request may use the link's cookie: the Dashboard and XML/A, what a dashboard page uses.
+function M.cookie_path(uri)
+  return uri:find("^/dashboard/") ~= nil or uri == "/dashboard" or uri:find("^/xmla/?$") ~= nil
+end
+
+-- A dashboard page, where a link in the address is taken.
+function M.dashboard_page(uri)
+  return uri:find("^/dashboard/d/[A-Za-z0-9_-]+/?$") ~= nil
+end
+
+function M.cookie()
+  local value = ngx.var["cookie_" .. M.COOKIE]
+  if value and value ~= "" then
+    return value
+  end
+end
+
+local function secure()
+  return config.public_url:find("^https://") and "; Secure" or ""
+end
+
+function M.set_cookie(token, expires_at)
+  local age = math.floor(math.min(COOKIE_SECONDS, expires_at - ngx.now()))
+  ngx.header["Set-Cookie"] = M.COOKIE .. "=" .. token .. "; Path=/; Max-Age=" .. age .. "; HttpOnly; SameSite=Lax" .. secure()
+end
+
+function M.clear_cookie()
+  ngx.header["Set-Cookie"] = M.COOKIE .. "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax" .. secure()
+end
+
 -- Returns claims; or nil and the reason, for the log only (never sent to the client); or nil and
 -- "unavailable" (auth-tokens or Keycloak could not answer: 503).
 function M.verify(token)
@@ -120,7 +162,7 @@ function M.verify(token)
   if cached then
     local entry = cjson.decode(cached)
     if entry and entry.expires and ngx.now() < entry.expires then
-      return claims_of(entry.user, entry.groups)
+      return claims_of(entry.user, entry.groups), entry.expires
     end
     cache:delete(key)
   end
@@ -178,7 +220,7 @@ function M.verify(token)
   if ttl > 0 then
     cache:set(key, cjson.encode({ user = body.user, groups = groups, expires = expires }), ttl)
   end
-  return claims_of(body.user, groups)
+  return claims_of(body.user, groups), expires
 end
 
 return M

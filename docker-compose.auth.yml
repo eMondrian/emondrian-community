@@ -15,10 +15,13 @@ services:
       # only with this set; XML/A reads them through the callback in auth/emondrian/web.xml.
       # The MCP tools get_open_access/set_open_access switch authentication through the state file
       # below; the Keycloak URL lets them (and the user and group tools) act as the caller there.
+      # The token service lets an administrator's create_link/get_link/revoke_link issue a user's
+      # personal link (its key is derived from SESSION_SECRET, which .env gives this container).
       CATALINA_OPTS: >-
         -Demondrian.security.trustForwardedUser=true
         -Demondrian.mcp.authStateFile=/etc/emondrian-auth-state/open_access.json
         -Demondrian.mcp.keycloak.url=http://keycloak:8080/auth
+        -Demondrian.mcp.tokens.url=http://auth-tokens:8080
         -Demondrian.security.file=/etc/emondrian/security/security.properties
       # The gateway's secret: X-Forwarded-User/-Groups are believed only on requests carrying it,
       # so a caller around the gateway (the host, another container) cannot name itself a user.
