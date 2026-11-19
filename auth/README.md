@@ -86,6 +86,24 @@ does not give it `realm-admin` (it takes it back if it is there) and logs an ERR
 and the MCP tool `create_group` refuses to create one under it. Keycloak's own administrator
 (`KEYCLOAK_ADMIN_USER` in `.env`) is never affected.
 
+### E-mail and first passwords
+
+With an `smtp:` section in `identity.yml` (example in `identity.example.yml`), apply sets the
+realm's mail server, and Keycloak can send e-mails. The one eMondrian uses: **a new user chooses
+their own password from a link in an e-mail**, so no administrator or agent ever knows it. The
+MCP tool `create_user` with `send_password_email: true` (it needs the user's `email`) creates the
+user and sends it; the tool `send_password_email` sends it again to an existing user. The link in
+the e-mail is valid for 24 hours and leads back to `PUBLIC_URL` after the password is set.
+
+`create_user` also takes `password` (a password the user keeps) or `temporary_password` (changed at
+the first login). Only one of the three may be given, and a password given to the tool never
+reaches the MCP traffic log. A user may also have no password at all and use only a link an
+administrator issued ([XML/A links](#xmla-links-power-bi-live-connection)).
+
+`security` is `starttls` (the default, port 587), `ssl` (465) or `none` (25). `user` and
+`password_file` (a file in `auth/secrets/`) go together, for a mail server that asks for a login.
+Without an `smtp:` section the realm's mail settings are left as they are.
+
 ### Active Directory or LDAP
 
 Users stay in the directory; Keycloak checks their password there at every login and copies
@@ -285,8 +303,9 @@ keeps only its SHA-256.
   refused even if it carries other credentials, and a valid link wins over them. The answer says
   to get a new link; the reason is in the gateway log only. After 20 refused links in a minute
   from one address the gateway answers 429 for a minute without checking.
-- **Only on `/xmla`.** Elsewhere the parameter is dropped unread. The gateway removes it before the
-  request goes on, so eMondrian never sees it, and the access log shows `emondrian_token=***`.
+- **Only on `/xmla` and on a dashboard's address** (below). Elsewhere the parameter is dropped
+  unread. The gateway removes it before the request goes on, so eMondrian and the Dashboard never
+  see it, and the access log shows `emondrian_token=***`.
   nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
   arrived, token included: keep the gateway's container log as private as the server itself.
 - **Treat it like a password.** Anyone who has the address queries the server as its owner, and
@@ -297,6 +316,51 @@ keeps only its SHA-256.
 Turn links off with `xmla_links: false` (or `enabled: false` under `xmla_links:`) in
 `identity.yml` and `auth/scripts/apply-config.sh`. Check them end to end with
 `auth/tests/check_xmla_link.py`.
+
+#### Opening a dashboard with the link
+
+The same token opens a dashboard in a browser, with no sign-in: put it after the dashboard's
+address instead of after `/xmla`.
+
+```
+https://bi.example.com/dashboard/d/<dashboard id>?emondrian_token=eml_…
+```
+
+- The gateway checks the link, keeps it in a cookie (`emondrian_link`: HttpOnly, SameSite=Lax,
+  Secure on https) and redirects to the dashboard's address without the token, so it does not stay
+  in the address bar or the browser history. The cookie lasts at most 12 hours and never past the
+  link's expiry; opening the link again starts it afresh.
+- The cookie counts only on `/dashboard` and `/xmla`, and only while the browser has no signed-in
+  session (a session wins). It acts as the link's user with the Dashboard's own rights: the user
+  sees the dashboards they may see, not only the one in the address. Every other page asks for a
+  sign-in, so the cookie cannot make links, tokens or MCP calls.
+- It is checked again on every request: a replaced or revoked link, a disabled user or an expired
+  link ends the browser session within 30 seconds: the cookie is removed and the page asks for a
+  sign-in. A link in the address that fails shows a page saying it is no longer valid. Logging out
+  removes the cookie too.
+- Anyone who has a user's XML/A link can build this address from it. It gives nothing beyond
+  what the link already gives in a client tool, but it is one more reason to treat the link like
+  a password.
+
+#### Links issued by an administrator
+
+A user who has no password at all, or who should not have to sign in, can be given a link by an
+administrator's AI agent through the MCP tools (realm administrators only, that is members of
+`emondrian-admins`; modules `0.0.0.111` and later):
+
+- `create_link` — a link for a user who exists and is enabled in Keycloak, with the user's
+  groups from Keycloak. `dashboard` adds the dashboard's address with the token to the answer,
+  `days` shortens the lifetime (at most `xmla_links.lifetime`). A user who already has a link
+  keeps it unless `replace: true` is given.
+- `get_link` — whether the user has a link, until when, when it was last used and who created
+  it; never the link itself.
+- `revoke_link` — ends it, as **Revoke** does.
+
+The agent receives the link once, in its answer, and passes it on; the server keeps only its
+SHA-256, and the MCP traffic log masks it. The MCP server reaches the token service directly
+(`-Demondrian.mcp.tokens.url=http://auth-tokens:8080` in `docker-compose.auth.yml`) with a key
+derived from `SESSION_SECRET`. The gateway removes the headers that name another user from every
+browser request, so a signed-in user can only ever get a link for themselves.
 
 ## HTTPS
 

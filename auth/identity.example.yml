@@ -78,10 +78,25 @@ open_access:
   groups: [emondrian-admins]
 
 # XML/A links: <PUBLIC_URL>/xmla?emondrian_token=…, a personal address for Power BI Desktop's live
-# connection, which sends no saved password. One per user; a new one replaces the old. Defaults shown.
+# connection, which sends no saved password; the same token also opens a dashboard in a browser
+# (<PUBLIC_URL>/dashboard/d/<id>?emondrian_token=…). One per user; a new one replaces the old.
+# Defaults shown.
 #xmla_links:
 #  enabled: true
 #  lifetime: 30d             # 1d to 365d, whole days
+
+# The mail server Keycloak sends its e-mails through: a new user then chooses their own password
+# from a link in an e-mail (MCP create_user with send_password_email, or send_password_email).
+# Without this section the realm's mail settings are left as they are.
+#smtp:
+#  host: smtp.example.com
+#  port: 587                 # default: 587 for starttls, 465 for ssl, 25 for none
+#  security: starttls        # starttls | ssl | none
+#  from: bi@example.com
+#  from_name: eMondrian      # default
+#  reply_to: bi-team@example.com             # optional
+#  user: bi@example.com      # user and password_file go together; leave both out for no login
+#  password_file: smtp-password              # file in auth/secrets/
 
 # Sessions, lockout, Basic cache. Durations: 45s, 30m, 10h, 2d. Defaults shown.
 #policy:
