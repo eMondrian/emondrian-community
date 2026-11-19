@@ -17,6 +17,7 @@ release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1
 ## Unreleased
 
 - **Power BI live connection with authentication on: XML/A links.** Power BI Desktop's *Connect live* does not send a saved user name and password, so it could not connect to a server with authentication on (import mode and Excel could). A signed-in user now gets a personal address, `https://<server>/xmla?emondrian_token=…`, with **Get link** on the main page or on `/account/tokens`, and uses it as the server name. One link per user: a new one replaces the old. It expires after 30 days (`xmla_links` in `auth/identity.yml`), and an expired, replaced, revoked or altered link answers 401. The gateway removes the token before the request reaches eMondrian and masks it in its access log. See *XML/A links* in `auth/README.md`. Run `docker compose up -d --build` to rebuild the gateway and the token service.
+- **Entry `1.4.0`** (was `1.3.2`): the main page has its own *Personal connection link* section for XML/A links, after *Connect a client*. It is shown only to a signed-in user when links are on; the gateway no longer adds a script to the main page for it. The page also reflects sign-in and the free MCP module: the Logs section is shown only to those who may read the logs, and an ended session reloads the page so that the gateway asks to log in.
 
 ## 2026.11.16.1
 

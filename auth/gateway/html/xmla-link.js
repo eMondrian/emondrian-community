@@ -1,9 +1,9 @@
 // XML/A link: a personal server address with a token in it, for Power BI Desktop's live
 // connection, which sends no saved password (auth/README.md, "XML/A links").
 //
-// Served by the auth gateway and added by it to the entry page (emondrian-locations.conf,
-// location = /), and loaded by /account/tokens. Shows nothing when the API refuses: authentication
-// off (open access), links turned off, or not logged in.
+// Served by the auth gateway and loaded by /account/tokens; the main page has its own section from
+// entry 1.4.0 on. Shows nothing when the API refuses: authentication off (open access), links
+// turned off, or not logged in.
 ;(function () {
   'use strict'
   var api = '/account/api/link'
@@ -30,21 +30,9 @@
     })
   }
 
-  // Where it goes: /account/tokens has a slot; the entry page gets a section after "Connect a client"
+  // Where it goes: the slot of /account/tokens
   function mount() {
-    var slot = document.getElementById('xmla-link-slot')
-    if (slot) return slot
-    // An entry image that has the section itself (data-xmla-link): the gateway adds nothing
-    if (document.querySelector('[data-xmla-link]')) return null
-    var title = document.getElementById('connect-title')
-    var after = title && title.closest('section')
-    if (!after) return null
-    var section = el('section', { class: 'section', id: 'xmla-link-section', 'aria-labelledby': 'xmla-link-title' })
-    section.append(el('h2', { class: 'section__title', id: 'xmla-link-title' }, 'Power BI live connection'))
-    var card = el('div', { class: 'card connect' })
-    section.append(card)
-    after.after(section)
-    return card
+    return document.getElementById('xmla-link-slot')
   }
 
   function render(box, state, fresh) {
