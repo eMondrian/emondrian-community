@@ -16,9 +16,11 @@ release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1
 
 ## Unreleased
 
+Modules `0.0.0.111` (was `0.0.0.110`).
+
 - **Power BI live connection with authentication on: XML/A links.** Power BI Desktop's *Connect live* does not send a saved user name and password, so it could not connect to a server with authentication on (import mode and Excel could). A signed-in user now gets a personal address, `https://<server>/xmla?emondrian_token=…`, with **Get link** on the main page or on `/account/tokens`, and uses it as the server name. One link per user: a new one replaces the old. It expires after 30 days (`xmla_links` in `auth/identity.yml`), and an expired, replaced, revoked or altered link answers 401. The gateway removes the token before the request reaches eMondrian and masks it in its access log. See *XML/A links* in `auth/README.md`. Run `docker compose up -d --build` to rebuild the gateway and the token service.
 - **The same link opens dashboards.** `https://<server>/dashboard/d/<id>?emondrian_token=…` opens a dashboard without signing in, as the link's user and with the Dashboard's own rights. The browser keeps the link in a cookie (at most 12 hours, never past the link's expiry), checked on every request: a replaced or revoked link, or a disabled user, ends it.
-- **An administrator's agent can issue a link for a user** (MCP `create_link`, `get_link`, `revoke_link`, realm administrators only; needs the next modules release, after `0.0.0.110`), so a user who has no password can open a dashboard or connect a client tool.
+- **An administrator's agent can issue a link for a user** (MCP `create_link`, `get_link`, `revoke_link`, realm administrators only; modules `0.0.0.111`), so a user who has no password can open a dashboard or connect a client tool.
 - **E-mail from Keycloak.** An `smtp:` section in `auth/identity.yml` (host, port, sender, `starttls`/`ssl`/`none`, user and password file) lets Keycloak send e-mails such as the set-password e-mail.
 
 ## 2026.11.18
