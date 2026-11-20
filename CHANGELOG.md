@@ -14,6 +14,17 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.20.4
+
+Server `10.0.96` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.96` (was `10.0.95`, engine `9.3.0-emondrian.94`): Excel PivotTables (run `docker compose pull` and `docker compose up -d`). The modules, the web tools and the entry page are unchanged.
+
+- **Expanding a user hierarchy no longer repeats rows.** With Store expanded to the states, Excel showed USA twice; down to the store names, each city four times. The form Excel sends for each level, `DrilldownLevel(set, level, INCLUDE_CALC_MEMBERS)`, drilled every member again.
+- **Label and value filters work in Excel PivotTables:** *Begins With*, *Contains*, *Greater Than* and the like. They were refused and Excel showed error 0x800A03EC. A filter is evaluated with the same user's roles, so a filtered total covers only what the user may see.
+- **Top 10 works** (Value Filters > Top 10): the named sets Excel writes into that query were not found.
+- **Cells carry their language** (`LANGUAGE`, the LCID of the connection's locale), as Analysis Services sends it with every cell.
+
 ## 2026.11.20.3
 
 Server `10.0.95` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
