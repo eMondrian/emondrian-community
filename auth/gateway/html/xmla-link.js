@@ -35,17 +35,24 @@
     })
   }
 
-  // Where it goes: the entry page gets a section after "Connect a client"
+  // Where it goes: the entry page gets a section after "Connect a client". An entry image with a
+  // section of its own (data-xmla-link, entry 1.4.0) built it for the XML/A links (eml_) that were
+  // removed, on /account/api/link, which now answers 410: that section is replaced by this one. The
+  // entry's script keeps its references to the old elements, so whatever it does to them later
+  // happens off the page.
   function mount() {
-    // An entry image that has the section itself (data-xmla-link): the gateway adds nothing
-    if (document.querySelector('[data-xmla-link]')) return null
-    var title = document.getElementById('connect-title')
-    var after = title && title.closest('section')
-    if (!after) return null
     var section = el('section', { class: 'section', id: 'xmla-link-section', 'aria-labelledby': 'xmla-link-title' })
     section.append(el('h2', { class: 'section__title', id: 'xmla-link-title' }, 'Power BI live connection'))
     var card = el('div', { class: 'card connect' })
     section.append(card)
+    var old = document.querySelector('[data-xmla-link]')
+    if (old) {
+      old.replaceWith(section)
+      return card
+    }
+    var title = document.getElementById('connect-title')
+    var after = title && title.closest('section')
+    if (!after) return null
     after.after(section)
     return card
   }

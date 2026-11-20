@@ -432,7 +432,8 @@ is copied to places a header never reaches:
   the token. Share reports through the Power BI service with its own credentials instead.
 - **Link previews** in messengers and mail scanners open the address themselves, so the token
   reaches their servers.
-- **The browser history** may keep the address as it was before the redirect.
+- **The browser history** keeps the address as it was before the redirect, token included
+  (checked with Chromium), and the address bar offers it again.
 - nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
   arrived, token included: keep the gateway's container log as private as the server itself.
 
