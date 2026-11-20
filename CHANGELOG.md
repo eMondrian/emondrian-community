@@ -14,6 +14,16 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.20.3
+
+Server `10.0.95` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Entry page `1.5.0` (was `1.3.2`) and the authentication gateway (run `docker compose pull` and `docker compose up -d --build`). The server, the modules and the web tools are unchanged.
+
+- **The main page shows the personal token itself.** With authentication on, *Power BI live connection* issues the signed-in user's token and shows the server address with it, once, with Copy; it asks before replacing a token, shows when the current one expires and was last used, revokes it, and links to `/account/tokens`. The gateway's own script (`/account/xmla-link.js`) now adds nothing to a page that has this section; it still adds one to an older entry page.
+- **The main page says more about sign-in**: Excel and Power BI can use the token as the password, and an MCP agent acts as the user it signs in as. The logs section is hidden from users who may not read the logs.
+- **The Dashboard comes first** among the tools on the main page, when it is turned on.
+
 ## 2026.11.20.2
 
 Server `10.0.95` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
