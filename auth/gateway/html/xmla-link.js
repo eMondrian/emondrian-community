@@ -2,8 +2,9 @@
 // Desktop's live connection, which sends no saved password (auth/README.md, "Personal tokens").
 //
 // Served by the auth gateway and added by it to the entry page (emondrian-locations.conf,
-// location = /). Shows nothing when the tokens API refuses: authentication off (open access),
-// tokens turned off, or not logged in. One token per user: issuing one here revokes the user's
+// location = /), for entry images older than 1.5.0, which have no section of their own. Shows
+// nothing when the tokens API refuses: authentication off (open access), tokens turned off, or not
+// logged in. One token per user: issuing one here revokes the user's
 // previous token, wherever it is used, so the page says so before it does.
 ;(function () {
   'use strict'
@@ -35,13 +36,14 @@
     })
   }
 
-  // Where it goes: the entry page gets a section after "Connect a client". An entry image with a
-  // section of its own (data-xmla-link, entry 1.4.0) built it for the XML/A links (eml_) that were
+  // Where it goes: the entry page gets a section after "Connect a client". Entry 1.5.0 and later
+  // have a Power BI section of their own on these tokens (data-personal-token): then nothing is
+  // added. Entry 1.4.0 built its section (data-xmla-link) for the XML/A links (eml_) that were
   // removed, on /account/api/link, which now answers 410: that section is replaced by this one. The
   // entry's script keeps its references to the old elements, so whatever it does to them later
-  // happens off the page. An entry that shows the personal token itself (data-personal-token,
-  // entry 1.5.0 and later) gets nothing from this script: see start().
+  // happens off the page.
   function mount() {
+    if (document.querySelector('[data-personal-token]')) return null
     var section = el('section', { class: 'section', id: 'xmla-link-section', 'aria-labelledby': 'xmla-link-title' })
     section.append(el('h2', { class: 'section__title', id: 'xmla-link-title' }, 'Power BI live connection'))
     var card = el('div', { class: 'card connect' })
@@ -114,7 +116,8 @@
   }
 
   function start() {
-    // The entry page has its own Power BI section on the tokens API: add nothing, replace nothing
+    // The entry page has its own Power BI section on the tokens API (entry 1.5.0 and later): add
+    // nothing, replace nothing, and don't even ask the API
     if (document.querySelector('[data-personal-token]')) return
     call('GET').then(function (state) {
       if (!state.enabled) return
