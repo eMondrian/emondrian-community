@@ -92,8 +92,12 @@ def connect():
 def one_per_user(db):
     """One token per user (2026-11). A user who still has several active ones keeps the newest;
     the others are revoked when this version starts (again harmlessly at later starts: there is
-    nothing left to revoke). The links table of the XML/A links (eml_) of earlier versions is left
-    as it was and no longer read."""
+    nothing left to revoke). The links table of the XML/A links (eml_) of earlier versions is
+    dropped: those links no longer work, and their hashes are of no use."""
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'links'").fetchone():
+        count = db.execute("SELECT COUNT(*) FROM links").fetchone()[0]
+        db.execute("DROP TABLE links")
+        print(f"XML/A links removed: table links dropped ({count} link(s), no longer valid)", flush=True)
     stamp = iso(now())
     rows = db.execute("SELECT id, owner FROM tokens WHERE revoked IS NULL AND expires > ?"
                       " ORDER BY owner, created DESC, id DESC", (stamp,)).fetchall()
