@@ -280,7 +280,7 @@ identity providers* above).
 
 ### REST API (JSON)
 
-`PUBLIC_URL/api/v1` answers in JSON, for systems that are not BI clients: backends, scripts, ETL
+`PUBLIC_URL/api/v1` (modules `0.0.0.112` and later) answers in JSON, for systems that are not BI clients: backends, scripts, ETL
 and low-code tools, services behind the gateway. It is read-only and needs no licence key (a DAX
 query still needs the DAX module's). Every sign-in method of XML/A works the same way: Basic with
 a user name and password or a personal access token, a Bearer token (personal or OAuth), an XML/A
