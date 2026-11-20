@@ -43,6 +43,10 @@ services:
     # file, read-only here too) and the ones they give.
     environment:
       GATEWAY_ONLY: "true"
+      # The address people open, port included: every dashboard link the Dashboard and its MCP tools
+      # give (create_dashboard, list_dashboards, get_dashboard) starts with it. Without it the links
+      # were built from the request inside the stack and lost a non-default port.
+      PUBLIC_URL: ${PUBLIC_URL}
       EMONDRIAN_FORWARDED_SECRET: ${EMONDRIAN_FORWARDED_SECRET:?set EMONDRIAN_FORWARDED_SECRET in .env - run ./auth/scripts/init.sh --no-start once, it keeps your settings}
       SECURITY_FILE: /etc/emondrian/security/security.properties
     volumes:

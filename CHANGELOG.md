@@ -14,6 +14,17 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.20.1
+
+Server `10.0.95` · modules `0.0.0.113` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
+
+Modules `0.0.0.113` (was `0.0.0.112`), and the Dashboard's address in `docker-compose.auth.yml` (run `docker compose up -d`). The server and the web tools are unchanged.
+
+- **Dashboard links include the port.** The links `create_dashboard`, `list_dashboards` and `get_dashboard` give, and the Dashboard's own, now start with `PUBLIC_URL`. On a server with a port other than 80 or 443 they lost the port before, so a link an agent gave didn't open as given.
+- **MCP tools for roles.** An agent reads and changes one role at a time instead of rewriting the whole schema, whose file can be more than an MCP client takes back from one call: `list_roles` (each role's members and grants, and the schema's `defaultRole`), `get_role`, `save_role` (create or replace one role; the rest of the file stays as it is), `delete_role`, `set_default_role`, and `get_schema` with `part` (`outline`, `roles`, `cube:<name>`, `dimension:<name>`). `save_role` writes nothing unless the schema with the role is well-formed and loads in the engine; an unknown member is refused by name. The same rights as `save_schema`.
+- **Check what a user sees before sharing.** With authentication on, a Keycloak administrator's agent can run `execute_query` and `describe_cube` with `as_user`: the user's groups and schema roles, so the agent sees exactly what that user will see. Logged in `logs/mcp-audit.log`.
+- **The cube authoring guide has a section on roles** (`get_cube_authoring_guide`, section 19): rows with `rollupPolicy="partial"`, hiding measures, the `defaultRole` and the other catalogs, and the order for sharing a dashboard with a client.
+
 ## 2026.11.20
 
 Server `10.0.95` · modules `0.0.0.112` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`

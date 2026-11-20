@@ -192,6 +192,13 @@ catalog and the generated data (permanently: keep your schemas in git), and
 anyone who reaches the port has this access, so treat MCP access as
 administrative access.
 
+**Roles** (who sees which rows and measures) are read and written one at a time:
+`list_roles`, `get_role`, `save_role`, `delete_role`, `set_default_role`, and `get_schema` with
+`part` (`outline`, `roles`, `cube:<name>`) for a schema too large to read whole. `save_role`
+writes nothing unless the schema with the new role loads. With authentication on, an
+administrator's agent can check what a user will see with `as_user` on `execute_query` and
+`describe_cube`.
+
 `get_csdl` returns one cube's model as Power BI sees it — the same CSDL
 document Power BI Desktop receives on a live connection, so an agent can write
 Power BI report files that name fields the way the model does. It needs a
