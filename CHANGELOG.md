@@ -14,6 +14,12 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+- **REST API with JSON** at `/api/v1`, next to XML/A, for systems that are not BI clients (backends, scripts, ETL and low-code tools, services behind the gateway): `GET /api/v1/catalogs`, `GET /api/v1/catalogs/{catalog}/cubes/{cube}` (the model as the caller sees it) and `POST /api/v1/query` (MDX or DAX; the result as a flat table, plain values by default or captions, unique names and formatted values with `"format": "detailed"`). The same sign-in as XML/A (password, personal token, OAuth, an XML/A link, a trusted service with the gateway's secret), the caller's roles and row-level security on every query, a line per request in the gateway's access log. Read-only and free; limits on rows, cells, time and request size. OpenAPI at `/api/v1/openapi.json`; see *REST API (JSON)* in `auth/README.md`. New module `modules/emondrian-rest-<version>.jar`.
+- **XML/A links also work on the REST API**, with the same expiry and revocation.
+- **No CORS for other sites by default.** The gateway no longer passes on the `Access-Control-Allow-Origin: *` the entry page and the server sent on `/xmla` and `/api`, and refuses CORS pre-flights there: a web page on another site can no longer call them from a visitor's browser. If you have such a page, list its origin under `cors.allowed_origins` in `auth/identity.yml` and run `auth/scripts/apply-config.sh`. `CORS_ALLOW_ORIGIN` in `.env` no longer has an effect on these paths. MCP is unchanged. Run `docker compose up -d --build`.
+
 ## 2026.11.19
 
 Server `10.0.95` · modules `0.0.0.111` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`

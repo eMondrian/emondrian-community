@@ -254,7 +254,7 @@ full access**. Give a schema a restrictive `defaultRole` before relying on roles
 | Browser | Login page; `PUBLIC_URL/logout` logs out (also of Keycloak). Pages are not kept by the browser, and a page's own request after the session has ended gets 401 without a password dialog (`login_required`; reload to sign in) |
 | Excel | *Data → Get Data → From Analysis Services*, server `PUBLIC_URL/xmla`, *Use the following User Name and Password* |
 | Power BI | *Analysis Services*, server `PUBLIC_URL/xmla`, then *Database* (user name and password) |
-| Scripts | `curl -u jdoe https://bi.example.com/xmla …` |
+| Scripts | `curl -u jdoe https://bi.example.com/xmla …`, or the REST API with JSON (below) |
 | MCP agents | the header `Authorization: Basic <base64 of user:password>` |
 
 Claude Code, for example:
@@ -277,6 +277,76 @@ token whose last check is older than 30 seconds is refused. Tokens last 90 days 
 chooses otherwise (at most 365, `personal_tokens` in `identity.yml`). A user who signs in through an
 external identity provider and is not kept in Keycloak cannot use personal tokens (see *External
 identity providers* above).
+
+### REST API (JSON)
+
+`PUBLIC_URL/api/v1` answers in JSON, for systems that are not BI clients: backends, scripts, ETL
+and low-code tools, services behind the gateway. It is read-only and needs no licence key (a DAX
+query still needs the DAX module's). Every sign-in method of XML/A works the same way: Basic with
+a user name and password or a personal access token, a Bearer token (personal or OAuth), an XML/A
+link's `?emondrian_token=`, or a trusted service's `X-Forwarded-User` with the gateway's secret.
+The caller's schema roles, row-level security included, apply to every query, and every request
+is a line in the gateway's access log.
+
+| Request | Answer |
+|---|---|
+| `GET /api/v1` | version and the server's limits |
+| `GET /api/v1/openapi.json` | the OpenAPI 3 description |
+| `GET /api/v1/catalogs` | catalogs and the cubes the caller may see |
+| `GET /api/v1/catalogs/{catalog}/cubes/{cube}` | dimensions, hierarchies, levels and measures, as the caller sees them (also `GET /api/v1/cube?catalog=…&cube=…`) |
+| `POST /api/v1/query` | `{"catalog", "query", "cube"?, "format"?, "maxRows"?, "timeoutSeconds"?}`: an MDX or DAX query, its result as a table |
+
+```bash
+curl -u jdoe -H 'Content-Type: application/json' https://bi.example.com/api/v1/query -d '{
+  "catalog": "FoodMart",
+  "query": "SELECT {[Measures].[Unit Sales]} ON 0, NON EMPTY [Store].[Store State].Members ON 1 FROM [Sales]"}'
+```
+
+```json
+{"language": "MDX", "catalog": "FoodMart", "format": "plain",
+ "columns": [{"name": "Store State", "uniqueName": "[Store].[Store State]", "kind": "member", "type": "string"},
+             {"name": "Unit Sales", "uniqueName": "[Measures].[Unit Sales]", "kind": "measure", "type": "number"}],
+ "rows": [{"Store State": "CA", "Unit Sales": 74748}, {"Store State": "OR", "Unit Sales": 67659},
+          {"Store State": "WA", "Unit Sales": 124366}],
+ "rowCount": 3, "returnedRows": 3, "truncated": false, "elapsedMs": 16}
+```
+
+- **MDX** comes back flat: the members of the row axis become columns of their own, named after
+  their level, and every position of the column axis becomes a value column. More than two axes
+  are refused. **DAX** (a query starting with `EVALUATE` or `DEFINE`) comes back as the table it
+  defines, with its own column names (`Store[Store State]`, `[Unit Sales]`); `cube` is needed when
+  the catalog has more than one.
+- `"format": "plain"` (the default) gives captions and raw values; `"detailed"` gives
+  `{"caption", "uniqueName"}` for members and `{"value", "formatted"}` for values.
+- Only queries run: `DRILLTHROUGH`, DMV, writeback and transaction statements are refused.
+- **Limits**, each a `-D` option in `JAVA_TOOL_OPTIONS`: rows per answer `emondrian.rest.defaultRows`
+  (10,000; `maxRows` in the request may ask for more up to `emondrian.rest.maxRows`, 100,000), cells
+  `emondrian.rest.maxCells` (2,000,000), time `emondrian.rest.maxTimeoutSeconds` (300; also the
+  default), request body `emondrian.rest.maxBodyBytes` (1 MB). `rowCount` and `truncated` say
+  whether there were more rows. `-Demondrian.rest.enabled=false` switches the API off.
+- **Errors** are `{"error": {"code", "message"}}` with the HTTP status: 400 a bad request, 401 no
+  or wrong credentials, 403, 404 an unknown catalog or cube, 413 too large, 415 not JSON, 422 a
+  query the engine refuses (its message says why), 502 the database failed, 504 the time ran out.
+  Failures inside the database or the server are not described to the caller; the server log has
+  them.
+- A `POST` must be sent as `Content-Type: application/json`, which a plain HTML form cannot do.
+
+### Browser pages on other sites (CORS)
+
+No other web site's page may call `/xmla` or the REST API from a browser: the gateway sends no
+`Access-Control-Allow-Origin` there and refuses pre-flight requests, whatever the server and the
+entry page would say (`CORS_ALLOW_ORIGIN` in `.env` has no effect on these paths). A token in a
+web page's code is readable by anyone who opens the page; keep calls to eMondrian on a server
+where you can. Sites that must call it from the browser are listed in `identity.yml`:
+
+```yaml
+cors:
+  allowed_origins: [https://app.example.com]
+```
+
+then `auth/scripts/apply-config.sh`. Each gets `Access-Control-Allow-Origin` with its own origin,
+never `*`, and never with cookies: its page sends a token in the `Authorization` header itself.
+MCP keeps its own CORS answers.
 
 ### XML/A links (Power BI live connection)
 
@@ -303,8 +373,8 @@ keeps only its SHA-256.
   refused even if it carries other credentials, and a valid link wins over them. The answer says
   to get a new link; the reason is in the gateway log only. After 20 refused links in a minute
   from one address the gateway answers 429 for a minute without checking.
-- **Only on `/xmla` and on a dashboard's address** (below). Elsewhere the parameter is dropped
-  unread. The gateway removes it before the request goes on, so eMondrian and the Dashboard never
+- **Only on `/xmla`, the REST API (`/api/v1`) and a dashboard's address** (below). Elsewhere the
+  parameter is dropped unread. The gateway removes it before the request goes on, so eMondrian and the Dashboard never
   see it, and the access log shows `emondrian_token=***`.
   nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
   arrived, token included: keep the gateway's container log as private as the server itself.
