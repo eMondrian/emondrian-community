@@ -115,6 +115,7 @@ After startup, the following endpoints are available:
 |---|---|
 | `http://localhost` | Main page — links to the tools below |
 | `http://localhost/xmla` | **XML/A endpoint** for BI tools and client applications |
+| `http://localhost/api/v1` | **REST API** with JSON: catalogs, a cube's model, MDX and DAX queries as tables |
 | `http://localhost/client/` | Browser OLAP client — explore the sample cubes without installing anything |
 | `http://localhost/schema-editor/` | Schema editor — create and edit cubes in the browser |
 | `http://localhost/catalog-editor/` | Catalog editor — data sources and catalogs the server publishes |
@@ -126,17 +127,14 @@ After startup, the following endpoints are available:
 The XMLA endpoint can be used to connect BI tools and client applications
 such as Power BI, Excel, or custom MDX clients.
 
-Web applications on another origin can call `/xmla` and `/api` from the browser:
-the front door answers CORS requests, including the `SOAPAction` header XMLA
-clients send. `CORS_ALLOW_ORIGIN` in `.env` sets which origin may do so:
+Systems that are not BI clients (backends, scripts, ETL and low-code tools) can use the **REST
+API** at `/api/v1` instead: plain HTTP and JSON, with the same sign-in and the same row-level
+security as XML/A, read-only and free. Requests, answers and limits: *REST API (JSON)* in
+[auth/README.md](auth/README.md), and `/api/v1/openapi.json` on the server.
 
-```
-CORS_ALLOW_ORIGIN=*                        # default: any origin
-CORS_ALLOW_ORIGIN=https://app.example.com  # one origin
-CORS_ALLOW_ORIGIN=                         # leave CORS to the eMondrian server
-```
-
-Run `docker compose up -d` after changing it.
+Web pages on another site may not call `/xmla` or `/api` from the browser unless their origin is
+listed in `auth/identity.yml` (`cors.allowed_origins`); see *Browser pages on other sites* in
+[auth/README.md](auth/README.md).
 
 ---
 
@@ -522,10 +520,9 @@ turn on HTTPS: without it passwords travel unencrypted, and the login page works
 only in a browser on the server itself. Users, Active Directory, roles, HTTPS
 and connecting each client: **[auth/README.md](auth/README.md)**.
 
-With authentication off, CORS widens access to the browser: with the default
-`CORS_ALLOW_ORIGIN=*`, any web page open in a browser that can reach the server
-may query `/xmla` and `/api` through it. Set `CORS_ALLOW_ORIGIN` to the one
-origin that needs it when the server holds data that should stay private.
+Pages on other web sites cannot query `/xmla` or `/api` from a visitor's browser,
+with authentication on or off, unless `cors.allowed_origins` in `auth/identity.yml`
+lists their origin.
 
 ---
 

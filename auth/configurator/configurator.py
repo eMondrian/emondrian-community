@@ -1028,6 +1028,33 @@ def xmla_links_settings(identity):
     return {"enabled": bool(section.get("enabled", True)), "days": seconds // 86400}
 
 
+def cors_settings(identity):
+    """cors in identity.yml: the web sites whose pages may call XML/A and the REST API from a
+    browser. None by default; the gateway then sends no Access-Control-Allow-Origin on those paths
+    (it removes the "*" the entry container and the server send) and refuses pre-flights. Each
+    entry is an origin: scheme, host and port, no path, e.g. https://app.example.com."""
+    section = identity.get("cors")
+    if section in (None, False):
+        return {"allowed_origins": []}
+    if not isinstance(section, dict):
+        raise ConfigError("identity.yml: cors must be a section (allowed_origins)")
+    unknown = set(section) - {"allowed_origins"}
+    if unknown:
+        raise ConfigError(f"identity.yml: unknown cors setting(s): {', '.join(sorted(unknown))}")
+    origins = section.get("allowed_origins") or []
+    if not isinstance(origins, list):
+        raise ConfigError("identity.yml: cors.allowed_origins must list origins, e.g. [https://app.example.com]")
+    pattern = re.compile(r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$")
+    cleaned = []
+    for origin in origins:
+        if not isinstance(origin, str) or not pattern.match(origin):
+            raise ConfigError(f"identity.yml: cors.allowed_origins: {origin!r} is not an origin like"
+                              " https://app.example.com (scheme and host, an optional port, no path, no *)")
+        if origin.lower() not in cleaned:
+            cleaned.append(origin.lower())
+    return {"allowed_origins": cleaned}
+
+
 def open_access_settings(identity):
     """open_access in identity.yml: everybody gets in without logging in, as one guest user in
     the groups listed (a demo or an evaluation; `roles` is the former name of `groups`). Sources stay configured, so switching it off
@@ -1361,6 +1388,8 @@ def gateway_config(identity):
         "personal_tokens": tokens_settings(identity)["enabled"],
         # /xmla?emondrian_token=… (Power BI Desktop's live connection)
         "xmla_links": xmla_links_settings(identity)["enabled"],
+        # Web sites whose pages may call XML/A and the REST API from a browser; none by default
+        "cors": cors_settings(identity),
         # 401 on MCP points to the OAuth metadata (Protected Resource Metadata)
         "mcp_oauth": mcp_settings(identity)["oauth"],
         # XML/A and the API offer and accept Negotiate (Kerberos)
@@ -1414,6 +1443,7 @@ def apply():
     identity = load_identity()
     gateway_config(identity)  # validate roles/claims (and kerberos, mcp, policy) before changing anything
     smtp_settings(identity)
+    cors_settings(identity)
     if identity["mode"] == "trusted-proxy":
         proxy = proxy_config(identity)
         how = (f"JWT in {proxy['jwt_header']} signed with {proxy['jwks_url']}" if proxy["jwt_header"]

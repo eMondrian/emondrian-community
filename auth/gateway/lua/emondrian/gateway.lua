@@ -17,6 +17,7 @@ local mcp      = require("emondrian.mcp")
 local kerberos = require("emondrian.kerberos")
 local proxy    = require("emondrian.trusted_proxy")
 local link     = require("emondrian.link")
+local cors     = require("emondrian.cors")
 
 local M = {}
 
@@ -47,6 +48,19 @@ end
 -- 401 without a challenge, for a page's script: a Basic challenge there makes the browser open its
 -- own password dialog over a page whose session has ended. The page goes to the login instead
 -- (login: "/" redirects there); a page that shows the answer's text shows the message.
+-- The REST API (/api/v1) answers in JSON, also when the gateway refuses a request
+local function rest_api()
+  return ngx.var.uri:find("^/api/v1") ~= nil
+end
+
+local function rest_error(status, code, message)
+  ngx.status = status
+  ngx.header["Content-Type"] = "application/json; charset=utf-8"
+  ngx.header["Cache-Control"] = "no-store"
+  ngx.say(require("cjson.safe").encode({ error = { code = code, message = message } }))
+  return ngx.exit(status)
+end
+
 local function login_required(bearer_error)
   local message = bearer_error and ("Token refused: " .. bearer_error)
                   or "Your session has ended. Reload the page to sign in again."
@@ -90,6 +104,10 @@ local function challenge(bearer_error)
       ngx.header["WWW-Authenticate"] = basic
     end
   end
+  if rest_api() then
+    return rest_error(ngx.HTTP_UNAUTHORIZED, "UNAUTHORIZED",
+      bearer_error and ("Token refused: " .. bearer_error) or "Authentication required")
+  end
   ngx.header["Content-Type"] = "text/plain; charset=utf-8"
   ngx.status = ngx.HTTP_UNAUTHORIZED
   ngx.say(bearer_error and ("Token refused: " .. bearer_error) or "Authentication required")
@@ -120,6 +138,9 @@ local function forward_access_token()
 end
 
 local function forbidden(message)
+  if rest_api() then
+    return rest_error(ngx.HTTP_FORBIDDEN, "FORBIDDEN", message)
+  end
   ngx.header["Content-Type"] = "text/plain; charset=utf-8"
   ngx.status = ngx.HTTP_FORBIDDEN
   ngx.say(message)
@@ -175,6 +196,10 @@ local header_methods = {
 local function link_refused(token, reason)
   link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(token) .. " from " .. ngx.var.remote_addr .. " refused: " .. reason)
   link.count_failure()
+  if rest_api() then
+    return rest_error(ngx.HTTP_UNAUTHORIZED, "UNAUTHORIZED", "This eMondrian link has expired or is no longer valid."
+      .. " Sign in to eMondrian and get a new link on " .. config.public_url .. "/account/tokens")
+  end
   ngx.status = ngx.HTTP_UNAUTHORIZED
   ngx.header["Content-Type"] = "text/plain; charset=utf-8"
   ngx.header["Cache-Control"] = "no-store"
@@ -202,9 +227,13 @@ local function api_with_link(token)
 end
 
 function M.api()
-  -- CORS pre-flights carry no credentials; the entry container answers them without data
+  -- CORS pre-flights carry no credentials. On XML/A and the API the gateway answers them itself
+  -- from cors.allowed_origins (cors.lua); MCP's go on to the entry container as before.
   if ngx.req.get_method() == "OPTIONS" then
     link.strip()
+    if cors.covers(ngx.var.uri) then
+      return cors.preflight()
+    end
     return
   end
 
@@ -212,10 +241,10 @@ function M.api()
     return open_access()
   end
 
-  -- XML/A links are for /xmla only; anywhere else the parameter is dropped unread
+  -- XML/A links are for /xmla and the REST API (/api/v1); anywhere else the parameter is dropped unread
   local token = link.from_request()
   if token then
-    if ngx.var.uri:find("^/xmla/?$") then
+    if ngx.var.uri:find("^/xmla/?$") or rest_api() then
       return api_with_link(token)
     end
     link.strip()

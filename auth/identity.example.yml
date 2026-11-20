@@ -79,11 +79,18 @@ open_access:
 
 # XML/A links: <PUBLIC_URL>/xmla?emondrian_token=…, a personal address for Power BI Desktop's live
 # connection, which sends no saved password; the same token also opens a dashboard in a browser
-# (<PUBLIC_URL>/dashboard/d/<id>?emondrian_token=…). One per user; a new one replaces the old.
+# (<PUBLIC_URL>/dashboard/d/<id>?emondrian_token=…) and works on the REST API (/api/v1).
+# One per user; a new one replaces the old.
 # Defaults shown.
 #xmla_links:
 #  enabled: true
 #  lifetime: 30d             # 1d to 365d, whole days
+
+# Web sites whose pages may call /xmla and the REST API (/api/v1) from a browser (CORS). None
+# by default: the gateway sends no Access-Control-Allow-Origin there. Origins only (scheme, host,
+# optional port), never "*"; such a page sends its own token, cookies are never allowed.
+#cors:
+#  allowed_origins: [https://app.example.com]
 
 # The mail server Keycloak sends its e-mails through: a new user then chooses their own password
 # from a link in an e-mail (MCP create_user with send_password_email, or send_password_email).

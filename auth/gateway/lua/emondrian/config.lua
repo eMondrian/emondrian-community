@@ -122,6 +122,12 @@ function M.load()
   M.personal_tokens = gateway.personal_tokens ~= false
   -- XML/A links, /xmla?emondrian_token=eml_… (Power BI Desktop's live connection)
   M.xmla_links = gateway.xmla_links ~= false
+  -- Web sites whose pages may call XML/A and the REST API from a browser (cors.lua); none by default
+  M.cors_origins = {}
+  local cors = type(gateway.cors) == "table" and gateway.cors or {}
+  for _, origin in ipairs(type(cors.allowed_origins) == "table" and cors.allowed_origins or {}) do
+    M.cors_origins[origin] = true
+  end
   -- OAuth for MCP clients (Protected Resource Metadata, Keycloak as authorization server)
   M.mcp_oauth = gateway.mcp_oauth == true
   -- Kerberos (Negotiate) on XML/A and the API
