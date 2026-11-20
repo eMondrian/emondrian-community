@@ -39,7 +39,8 @@
   // section of its own (data-xmla-link, entry 1.4.0) built it for the XML/A links (eml_) that were
   // removed, on /account/api/link, which now answers 410: that section is replaced by this one. The
   // entry's script keeps its references to the old elements, so whatever it does to them later
-  // happens off the page.
+  // happens off the page. An entry that shows the personal token itself (data-personal-token,
+  // entry 1.5.0 and later) gets nothing from this script: see start().
   function mount() {
     var section = el('section', { class: 'section', id: 'xmla-link-section', 'aria-labelledby': 'xmla-link-title' })
     section.append(el('h2', { class: 'section__title', id: 'xmla-link-title' }, 'Power BI live connection'))
@@ -113,6 +114,8 @@
   }
 
   function start() {
+    // The entry page has its own Power BI section on the tokens API: add nothing, replace nothing
+    if (document.querySelector('[data-personal-token]')) return
     call('GET').then(function (state) {
       if (!state.enabled) return
       var box = mount()
