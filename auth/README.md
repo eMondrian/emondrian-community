@@ -95,10 +95,11 @@ MCP tool `create_user` with `send_password_email: true` (it needs the user's `em
 user and sends it; the tool `send_password_email` sends it again to an existing user. The link in
 the e-mail is valid for 24 hours and leads back to `PUBLIC_URL` after the password is set.
 
-`create_user` also takes `password` (a password the user keeps) or `temporary_password` (changed at
-the first login). Only one of the three may be given, and a password given to the tool never
-reaches the MCP traffic log. A user may also have no password at all and use only a link an
-administrator issued ([XML/A links](#xmla-links-power-bi-live-connection)).
+`create_user` sets no password and takes none (since 2026-11; `password` and `temporary_password`
+are refused): a password someone chose is known to them, and one in a tool call passes through an
+AI agent. **Without mail**, the user works with a personal token instead: an administrator issues
+it on `PUBLIC_URL/account/tokens?user=<name>`, which also shows a link to a dashboard ready to copy
+([Personal tokens](#personal-tokens-issuing-links-and-agents)). Keycloak needs no password for that.
 
 `security` is `starttls` (the default, port 587), `ssl` (465) or `none` (25). `user` and
 `password_file` (a file in `auth/secrets/`) go together, for a mail server that asks for a login.
@@ -268,23 +269,24 @@ A login checked once is reused for 5 minutes (`policy.basic_cache`), but never p
 before its own access token expires (5 minutes by default), so disabling a user, a new password
 or a removed group reaches Excel and Power BI within one token lifetime.
 
-A **personal access token** (`PUBLIC_URL/account/tokens`, used as the password or as a Bearer
-token) follows its owner: at each use, at most every 30 seconds, the gateway asks Keycloak whether
-the owner still exists and is enabled and which groups it is in now, with its own service account
-`emondrian-gateway-lookup` (Keycloak's `view-users` only). A deleted or disabled owner's tokens
-stop working and a changed group applies within 30 seconds. While Keycloak cannot be reached, a
-token whose last check is older than 30 seconds is refused. Tokens last 90 days unless their owner
-chooses otherwise (at most 365, `personal_tokens` in `identity.yml`). A user who signs in through an
-external identity provider and is not kept in Keycloak cannot use personal tokens (see *External
-identity providers* above).
+A **personal token** (`emk_…`, [Personal tokens](#personal-tokens-issuing-links-and-agents)), used as
+the password, as a Bearer token or in the address, follows its owner: at each use, at most every 30
+seconds, the gateway asks Keycloak whether the owner still exists and is enabled and which groups
+it is in now, with its own service account `emondrian-gateway-lookup` (Keycloak's `view-users`
+only). A deleted or disabled owner's token stops working and a changed group applies within 30
+seconds. While Keycloak cannot be reached, a token whose last check is older than 30 seconds is
+refused. A user who signs in through an external identity provider and is not kept in Keycloak
+cannot use personal tokens (see *External identity providers* above).
 
 ### REST API (JSON)
 
 `PUBLIC_URL/api/v1` (modules `0.0.0.112` and later) answers in JSON, for systems that are not BI clients: backends, scripts, ETL
 and low-code tools, services behind the gateway. It is read-only and needs no licence key (a DAX
 query still needs the DAX module's). Every sign-in method of XML/A works the same way: Basic with
-a user name and password or a personal access token, a Bearer token (personal or OAuth), an XML/A
-link's `?emondrian_token=`, or a trusted service's `X-Forwarded-User` with the gateway's secret.
+a user name and password or the user's personal token, a Bearer token (personal or OAuth), or a
+trusted service's `X-Forwarded-User` with the gateway's secret. A token in the address
+(`?emondrian_token=`) is refused with 401: send it in the `Authorization` header, where proxies
+and histories do not keep it.
 The caller's schema roles, row-level security included, apply to every query, and every request
 is a line in the gateway's access log.
 
@@ -348,89 +350,97 @@ then `auth/scripts/apply-config.sh`. Each gets `Access-Control-Allow-Origin` wit
 never `*`, and never with cookies: its page sends a token in the `Authorization` header itself.
 MCP keeps its own CORS answers.
 
-### XML/A links (Power BI live connection)
+### Personal tokens: issuing, links and agents
 
-Power BI Desktop's **Connect live** to an Analysis Services address does not send a saved user
-name and password: after the server's first 401 it asks again without them and gives up. Import
-mode and Excel do send them. For a live connection each user can instead get a personal address
-with a token in it:
+Every user has **at most one personal token** (`emk_…`), for everything that cannot sign in through
+a browser. The same token works:
 
+| Where | How |
+|---|---|
+| Excel, Power BI (import) | server `PUBLIC_URL/xmla`, the owner's user name, the token as the password |
+| Power BI live connection | the server address with the token in it: `PUBLIC_URL/xmla?emondrian_token=emk_…` (Power BI Desktop's *Connect live* sends no saved password) |
+| Scripts, backends, the REST API, MCP agents | `Authorization: Bearer emk_…` (or Basic with the owner's name); never in the address |
+| A link to a dashboard | `PUBLIC_URL/dashboard/d/<dashboard id>?emondrian_token=emk_…`: opens without signing in |
+
+**Issuing.** A user issues their own on `PUBLIC_URL/account/tokens`; the entry page's *Power BI live
+connection* section does the same and shows the `/xmla` address. A member of `emondrian-admins`
+issues one for any user on the same page (*For user*; `?user=<name>&dashboard=<id>` in the address
+fills the form and shows the dashboard's link ready to copy), or with the tokens API. The token is
+shown once; the server keeps only its SHA-256. **A new token revokes the user's current one**:
+Excel, Power BI, scripts and links that use it stop within 30 seconds, and the page says so before
+it issues. Tokens last 90 days unless the issuer chooses otherwise (at most 365; `personal_tokens`
+in `identity.yml`). An administrator does not issue a token for another administrator unless
+`personal_tokens.issue_for_admins: true`.
+
+**One user, one consumer.** A token revoked or replaced stops everything that uses it, so give
+each consumer its own user: a portal's backend one, the links sent to a client another, both in the
+client's group with the same role. Revoking one then never stops the other, and the access log
+shows by name which of them called. **A user whose token goes into a link may only read**: anyone
+who has the link has everything that user has, in every client, until the token expires or is
+revoked.
+
+**The tokens API** (`PUBLIC_URL/account/api/tokens`), for scripts and automation:
+
+| Request | Answer |
+|---|---|
+| `POST` `{"user"?, "name"?, "days"?}` | 201 with `token` (once), `id`, `owner`, `expires`, `created_by`, `replaced` (the ids it revoked) |
+| `GET` `[?user=<name>`, or `?all=1` for administrators`]` | the active tokens, never their values: name, created, expires, last used, issued by |
+| `DELETE /<id>` | revokes it (own, or any for administrators) |
+
+It takes the page's session, Basic with a **password**, or a Bearer token of a sign-in; **a personal
+token gets 401**, so a stolen one cannot renew itself. Errors are the REST API's
+`{"error": {"code", "message"}}`: 400 (`days` above `max_lifetime`), 401, 403 (not an
+administrator; another administrator; agents, below), 404 (no such user, or disabled), 429 (more
+than 10 wrong passwords a minute from one address). A request that names an `Origin` must come from
+`PUBLIC_URL`. Issuing for another user needs Keycloak to look the user up (mode `broker`).
+
+```bash
+curl -u admin -H 'Content-Type: application/json' https://bi.example.com/account/api/tokens \
+     -d '{"user": "acme-portal", "name": "Acme portal backend", "days": 90}'
 ```
-https://bi.example.com/xmla?emondrian_token=eml_…
-```
 
-A signed-in user gets it with **Get link** on the main page or on `PUBLIC_URL/account/tokens`, and
-enters it in Power BI as the server name. The link signs the request in as that user, with the
-user's current groups (checked in Keycloak as for personal tokens). It is shown once; the server
-keeps only its SHA-256.
+A token printed by a script stays in the CI log, and one written by Terraform stays in its state
+in clear text: keep both as secret as the token.
 
-- **One link per user.** Getting a new one replaces the old one, which stops working within 30
-  seconds; so does **Revoke**. Reports that use the old link need the new address.
-- **It expires** after 30 days (`xmla_links.lifetime` in `identity.yml`, 1d to 365d). Expiry is
-  checked on every request, so an open report stops at its next query.
-- **Every failure is a 401:** an unknown, altered, replaced, revoked or expired link, or an owner
-  who no longer exists or is disabled. The link decides alone: a request whose link fails is
-  refused even if it carries other credentials, and a valid link wins over them. The answer says
-  to get a new link; the reason is in the gateway log only. After 20 refused links in a minute
-  from one address the gateway answers 429 for a minute without checking.
-- **Only on `/xmla`, the REST API (`/api/v1`) and a dashboard's address** (below). Elsewhere the
-  parameter is dropped unread. The gateway removes it before the request goes on, so eMondrian and the Dashboard never
-  see it, and the access log shows `emondrian_token=***`.
-  nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
+**AI agents** (`personal_tokens.issue_via_agents`, **off** by default). With it off, no token's value
+passes through an AI agent: the MCP tool `create_token` answers with the page
+`PUBLIC_URL/account/tokens?user=<name>&dashboard=<id>` for an administrator to open in a browser,
+and the tokens API refuses a Bearer token issued to any client other than the gateway's own (the
+MCP clients that register themselves, `emondrian-cli`, any other program); the page and Basic are
+not affected. With it on, `create_token` returns the token, the `/xmla` address and the
+dashboard's link. `list_tokens` and `revoke_token` work either way and never show a value. What the
+switch does **not** cover, because the gateway cannot tell these from the person:
+
+- an agent that has a user's or an administrator's **password and a shell** (`curl -u`);
+- an agent that **drives a browser** with an administrator's session: do not sign in as an
+  administrator in a browser an agent controls;
+- access to the **server itself** (the containers, `SESSION_SECRET`), or to **Keycloak's admin
+  console or API**.
+
+**A token in an address.** The gateway takes it only on `/xmla` and on a dashboard page, removes
+just that parameter before the request goes on (eMondrian and the Dashboard never see it), and
+masks it in its access log (`emondrian_token=***`). On a dashboard page it keeps the token in a
+cookie (`emondrian_link`: HttpOnly, SameSite=Lax, Secure on https, at most 12 hours and never past
+the token's expiry) and redirects to the same address without it; the cookie counts only on
+`/dashboard` and `/xmla`, only while the browser has no signed-in session, and is checked again on
+every request, so a revoked or replaced token or a disabled user ends the browser session within 30
+seconds. A token in the address that fails gets 401 whatever else the request carries, and after
+20 failures in a minute from one address the gateway answers 429 for a minute. Still, an address
+is copied to places a header never reaches:
+
+- **Power BI and Excel files** keep the server address: a `.pbix` or `.odc` shared as a file shares
+  the token. Share reports through the Power BI service with its own credentials instead.
+- **Link previews** in messengers and mail scanners open the address themselves, so the token
+  reaches their servers.
+- **The browser history** may keep the address as it was before the redirect.
+- nginx's own error lines (an unreachable eMondrian, a timeout) quote the request line as it
   arrived, token included: keep the gateway's container log as private as the server itself.
-- **Treat it like a password.** Anyone who has the address queries the server as its owner, and
-  Power BI keeps it in the `.pbix` file: a report shared as a file shares the link. Share reports
-  through the Power BI service with its own credentials instead, or have each person get their own
-  link.
 
-Turn links off with `xmla_links: false` (or `enabled: false` under `xmla_links:`) in
-`identity.yml` and `auth/scripts/apply-config.sh`. Check them end to end with
-`auth/tests/check_xmla_link.py`.
+Check it all end to end with `auth/tests/check_tokens.py`.
 
-#### Opening a dashboard with the link
-
-The same token opens a dashboard in a browser, with no sign-in: put it after the dashboard's
-address instead of after `/xmla`.
-
-```
-https://bi.example.com/dashboard/d/<dashboard id>?emondrian_token=eml_…
-```
-
-- The gateway checks the link, keeps it in a cookie (`emondrian_link`: HttpOnly, SameSite=Lax,
-  Secure on https) and redirects to the dashboard's address without the token, so it does not stay
-  in the address bar or the browser history. The cookie lasts at most 12 hours and never past the
-  link's expiry; opening the link again starts it afresh.
-- The cookie counts only on `/dashboard` and `/xmla`, and only while the browser has no signed-in
-  session (a session wins). It acts as the link's user with the Dashboard's own rights: the user
-  sees the dashboards they may see, not only the one in the address. Every other page asks for a
-  sign-in, so the cookie cannot make links, tokens or MCP calls.
-- It is checked again on every request: a replaced or revoked link, a disabled user or an expired
-  link ends the browser session within 30 seconds: the cookie is removed and the page asks for a
-  sign-in. A link in the address that fails shows a page saying it is no longer valid. Logging out
-  removes the cookie too.
-- Anyone who has a user's XML/A link can build this address from it. It gives nothing beyond
-  what the link already gives in a client tool, but it is one more reason to treat the link like
-  a password.
-
-#### Links issued by an administrator
-
-A user who has no password at all, or who should not have to sign in, can be given a link by an
-administrator's AI agent through the MCP tools (realm administrators only, that is members of
-`emondrian-admins`; modules `0.0.0.111` and later):
-
-- `create_link` — a link for a user who exists and is enabled in Keycloak, with the user's
-  groups from Keycloak. `dashboard` adds the dashboard's address with the token to the answer,
-  `days` shortens the lifetime (at most `xmla_links.lifetime`). A user who already has a link
-  keeps it unless `replace: true` is given.
-- `get_link` — whether the user has a link, until when, when it was last used and who created
-  it; never the link itself.
-- `revoke_link` — ends it, as **Revoke** does.
-
-The agent receives the link once, in its answer, and passes it on; the server keeps only its
-SHA-256, and the MCP traffic log masks it. The MCP server reaches the token service directly
-(`-Demondrian.mcp.tokens.url=http://auth-tokens:8080` in `docker-compose.auth.yml`) with a key
-derived from `SESSION_SECRET`. The gateway removes the headers that name another user from every
-browser request, so a signed-in user can only ever get a link for themselves.
+**Until 2026-11** a separate XML/A link (`eml_…`, one per user, 30 days) did the address's work. It
+no longer works: issue a token and change the Power BI source and the dashboard links to it.
+`xmla_links` in `identity.yml` is ignored with a warning, and so is `personal_tokens.max_per_user`.
 
 ## HTTPS
 

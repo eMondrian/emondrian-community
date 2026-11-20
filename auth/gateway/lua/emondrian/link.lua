@@ -1,33 +1,28 @@
--- XML/A links: <PUBLIC_URL>/xmla?emondrian_token=eml_…, for clients that keep the server address
--- but send no credentials of their own. Power BI Desktop's live connection is the one that needs
--- it: it drops a saved Basic password after the first 401 (auth/README.md, "XML/A links").
+-- A personal token (emk_…, pat.lua) in the address, for clients that keep the server address but
+-- send no credentials of their own, and for links people open in a browser:
 --
--- A user creates the link on /account/tokens (POST /account/api/link, browser session); the
--- auth-tokens service keeps one per user, as its SHA-256, and a new one replaces the old.
+--   <PUBLIC_URL>/xmla?emondrian_token=emk_…              Power BI Desktop's live connection, which
+--                                                        drops a saved password after the first 401
+--   <PUBLIC_URL>/dashboard/d/<id>?emondrian_token=emk_…  a dashboard, without signing in
 --
--- verify(): on /xmla, before any other method. A link that fails is a 401 straight away, whatever
--- else the request carries: a broken link must not quietly work under someone's saved password.
--- Expiry is checked on every request, also from the cache; the owner is looked up in Keycloak as
--- for personal tokens (mode broker, owner.lua, fail closed). The token never goes further: it is
--- removed from the query string before the request is proxied, and the access log masks it
--- ($request_masked, nginx.conf).
+-- Nowhere else: the REST API and MCP take the token in the Authorization header only.
 --
--- The same link opens a dashboard in a browser: <PUBLIC_URL>/dashboard/d/<id>?emondrian_token=eml_…
--- The gateway checks it, puts it in a cookie (HttpOnly, Secure, SameSite Lax, never longer than
--- the link or 12 h) and redirects to the address without it, so the token leaves the address bar
--- and the history; the page's own requests (its files, its API calls, its MDX on /xmla) carry the
--- cookie. With that cookie and no sign-in session, /dashboard and /xmla act as the link's user,
--- with that user's rights and roles, as Power BI does with the link; other pages need a sign-in.
--- The cookie goes through verify() on every request, so a replaced, revoked or expired link, or
--- an owner disabled in Keycloak, ends the browser session within the 30 s cache too.
+-- On /xmla the token in the address decides alone, whatever else the request carries: a broken
+-- token must not quietly work under someone's saved password. On a dashboard page the gateway
+-- checks it, puts it in a cookie (HttpOnly, Secure, SameSite Lax, never longer than the token or
+-- 12 h) and redirects to the same address without the emondrian_token parameter, so the token
+-- leaves the address bar; the page's own requests (its files, its API calls, its MDX on /xmla)
+-- carry the cookie, which is taken on /dashboard and /xmla only. The cookie goes through the
+-- token check on every request, so a revoked or expired token, a newer token of the same user, or
+-- an owner disabled in Keycloak ends the browser session within the 30 s cache.
+--
+-- The token never goes further: it is removed from the query string before the request is
+-- proxied, and the access log masks it ($request_masked, nginx.conf).
+--
+-- Until 2026-11 these addresses carried a separate XML/A link (eml_…); those no longer work.
 
-local http     = require("resty.http")
-local cjson    = require("cjson.safe")
-local sha256   = require("resty.sha256")
-local rstr     = require("resty.string")
 local config   = require("emondrian.config")
-local identity = require("emondrian.identity")
-local owner    = require("emondrian.owner")
+local pat      = require("emondrian.pat")
 
 -- Messages without the request line, which holds the token (log.lua)
 local raw_log  = require("emondrian.log").out_of_request
@@ -36,33 +31,13 @@ local M = {}
 
 M.raw_log = raw_log
 
-local SERVICE = "http://auth-tokens:8080"
 M.COOKIE = "emondrian_link"
--- A browser keeps a link's session at most this long, and never past the link's expiry
+-- A browser keeps a link's session at most this long, and never past the token's expiry
 local COOKIE_SECONDS = 12 * 3600
 local PARAM = "emondrian_token"
--- eml_ + 32 random bytes in base64url (auth/tokens/tokens.py)
-local FORMAT = "^eml_[A-Za-z0-9_-]+$"
-local LENGTH = 4 + 43
--- A revoked or replaced link keeps working for at most this long (the verification cache)
-local CACHE_SECONDS = 30
--- Refused links per client address and minute before the gateway stops checking them (429)
+-- Refused tokens in the address per client address and minute before the gateway stops checking
+-- them (429)
 local FAILURES_PER_MINUTE = 20
-
-local function hex_sha256(value)
-  local hash = sha256:new()
-  hash:update(value)
-  return rstr.to_hex(hash:final())
-end
-
-local secret
-
-local function service_secret()
-  if not secret then
-    secret = hex_sha256("emondrian-tokens\0" .. config.secret)
-  end
-  return secret
-end
 
 -- What the log may show of a token: its first characters, as the token list shows them
 function M.hint(token)
@@ -98,7 +73,7 @@ function M.strip()
   end
 end
 
--- Whether this address has refused links enough for now; counts one more refusal when asked.
+-- Whether this address has refused tokens enough for now; counts one more refusal when asked.
 local function failures(count)
   local dict = ngx.shared.link_failures
   local key = ngx.var.remote_addr or "-"
@@ -112,16 +87,12 @@ end
 M.too_many_failures = function() return failures(false) end
 M.count_failure = function() return failures(true) end
 
-local function claims_of(user, groups)
-  return { [config.username_claim] = user, [config.groups_claims[1] or "groups"] = groups }
-end
-
--- Whether a request may use the link's cookie: the Dashboard and XML/A, what a dashboard page uses.
+-- Whether a request may use the cookie: the Dashboard and XML/A, what a dashboard page uses.
 function M.cookie_path(uri)
   return uri:find("^/dashboard/") ~= nil or uri == "/dashboard" or uri:find("^/xmla/?$") ~= nil
 end
 
--- A dashboard page, where a link in the address is taken.
+-- A dashboard page, where a token in the address is taken.
 function M.dashboard_page(uri)
   return uri:find("^/dashboard/d/[A-Za-z0-9_-]+/?$") ~= nil
 end
@@ -138,7 +109,11 @@ local function secure()
 end
 
 function M.set_cookie(token, expires_at)
-  local age = math.floor(math.min(COOKIE_SECONDS, expires_at - ngx.now()))
+  local age = COOKIE_SECONDS
+  if expires_at then
+    age = math.min(age, expires_at - ngx.now())
+  end
+  age = math.floor(age)
   ngx.header["Set-Cookie"] = M.COOKIE .. "=" .. token .. "; Path=/; Max-Age=" .. age .. "; HttpOnly; SameSite=Lax" .. secure()
 end
 
@@ -146,81 +121,34 @@ function M.clear_cookie()
   ngx.header["Set-Cookie"] = M.COOKIE .. "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax" .. secure()
 end
 
--- Returns claims; or nil and the reason, for the log only (never sent to the client); or nil and
--- "unavailable" (auth-tokens or Keycloak could not answer: 503).
+-- The address without the token: the same path and every other parameter, for the redirect.
+function M.address_without_token()
+  M.strip()
+  local args = ngx.var.args
+  return ngx.var.uri .. ((args and args ~= "") and ("?" .. args) or "")
+end
+
+-- Returns claims and the token's expiry (epoch seconds); or nil and the reason, for the log only
+-- (never sent to the client); or nil and "unavailable" (auth-tokens or Keycloak could not
+-- answer: 503).
 function M.verify(token)
-  if not config.xmla_links then
-    return nil, "XML/A links are turned off (xmla_links in identity.yml)"
+  if not config.personal_tokens then
+    return nil, "personal tokens are turned off (personal_tokens in identity.yml)"
   end
-  if #token ~= LENGTH or not token:find(FORMAT) then
+  if type(token) == "string" and token:find("^eml_") then
+    return nil, "an XML/A link (eml_), which no longer works: the user needs a personal token"
+  end
+  if not pat.well_formed(token) then
     return nil, "malformed"
   end
-
-  local key = "link:" .. hex_sha256(config.secret .. "\0" .. token)
-  local cache = ngx.shared.basic_auth
-  local cached = cache:get(key)
-  if cached then
-    local entry = cjson.decode(cached)
-    if entry and entry.expires and ngx.now() < entry.expires then
-      return claims_of(entry.user, entry.groups), entry.expires
-    end
-    cache:delete(key)
-  end
-
-  local httpc = http.new()
-  httpc:set_timeout(5000)
-  local res, err = httpc:request_uri(SERVICE .. "/verify-link", {
-    method  = "POST",
-    headers = { ["Content-Type"] = "application/json", ["X-Tokens-Secret"] = service_secret() },
-    body    = cjson.encode({ token = token }),
-  })
-  if not res then
-    raw_log(ngx.ERR, "auth-tokens unreachable: " .. tostring(err))
+  local claims, err, expires = pat.verify(token)
+  if err == "unavailable" then
     return nil, "unavailable"
   end
-  local body = cjson.decode(res.body or "") or {}
-  if res.status == 404 then
-    local reason = type(body.reason) == "string" and body.reason or "unknown"
-    if type(body.user) == "string" then
-      reason = reason .. " (link of " .. identity.one_line(body.user) .. ")"
-    end
-    return nil, reason
+  if not claims then
+    return nil, "unknown, expired or revoked token, or its owner is disabled"
   end
-  if res.status ~= 200 or type(body.user) ~= "string" then
-    raw_log(ngx.ERR, "auth-tokens answered HTTP " .. res.status .. " to a link check")
-    return nil, "unavailable"
-  end
-
-  local groups
-  if config.owner_check then
-    local reason
-    groups, reason = owner.current(body.user)
-    if not groups then
-      if reason == "unavailable" then
-        return nil, "unavailable"
-      end
-      return nil, "the owner " .. identity.one_line(body.user) .. " no longer exists or is disabled in Keycloak"
-    end
-  else
-    groups = {}
-    for _, group in ipairs(type(body.groups) == "table" and body.groups or {}) do
-      if type(group) == "string" and group:sub(1, 1) == "/" then
-        groups[#groups + 1] = group
-      end
-    end
-  end
-
-  -- The expiry, as epoch seconds; the cache never outlives it
-  local expires = tonumber(body.expires_at)
-  if not expires then
-    raw_log(ngx.ERR, "auth-tokens sent no expiry for a link")
-    return nil, "unavailable"
-  end
-  local ttl = math.min(CACHE_SECONDS, expires - ngx.now())
-  if ttl > 0 then
-    cache:set(key, cjson.encode({ user = body.user, groups = groups, expires = expires }), ttl)
-  end
-  return claims_of(body.user, groups), expires
+  return claims, expires
 end
 
 return M

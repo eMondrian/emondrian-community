@@ -15,8 +15,8 @@ services:
       # only with this set; XML/A reads them through the callback in auth/emondrian/web.xml.
       # The MCP tools get_open_access/set_open_access switch authentication through the state file
       # below; the Keycloak URL lets them (and the user and group tools) act as the caller there.
-      # The token service lets an administrator's create_link/get_link/revoke_link issue a user's
-      # personal link (its key is derived from SESSION_SECRET, which .env gives this container).
+      # The token service lets MCP's create_token/list_tokens/revoke_token issue, list and revoke
+      # personal tokens (its key is derived from SESSION_SECRET, which .env gives this container).
       CATALINA_OPTS: >-
         -Demondrian.security.trustForwardedUser=true
         -Demondrian.mcp.authStateFile=/etc/emondrian-auth-state/open_access.json

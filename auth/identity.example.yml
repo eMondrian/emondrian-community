@@ -77,14 +77,21 @@ open_access:
   user: guest
   groups: [emondrian-admins]
 
-# XML/A links: <PUBLIC_URL>/xmla?emondrian_token=…, a personal address for Power BI Desktop's live
-# connection, which sends no saved password; the same token also opens a dashboard in a browser
-# (<PUBLIC_URL>/dashboard/d/<id>?emondrian_token=…) and works on the REST API (/api/v1).
-# One per user; a new one replaces the old.
+# Personal tokens (emk_…): one per user, issued on /account/tokens (a user for themselves, an
+# administrator for anyone) or POST /account/api/tokens. A new token revokes the user's previous
+# one. It works as the Basic password (Excel, Power BI), as a Bearer token (scripts, REST API,
+# MCP), and in the address of /xmla (Power BI's live connection) and of a dashboard
+# (<PUBLIC_URL>/dashboard/d/<id>?emondrian_token=…, a link that needs no sign-in).
 # Defaults shown.
-#xmla_links:
+#personal_tokens:
 #  enabled: true
-#  lifetime: 30d             # 1d to 365d, whole days
+#  default_lifetime: 90d     # whole days
+#  max_lifetime: 365d
+#  # MCP tools and OAuth tokens of clients other than the gateway (an AI agent's) issue tokens:
+#  # off, an agent never sees a token's value; an administrator issues it on /account/tokens
+#  issue_via_agents: false
+#  # an administrator issues a token for another administrator
+#  issue_for_admins: false
 
 # Web sites whose pages may call /xmla and the REST API (/api/v1) from a browser (CORS). None
 # by default: the gateway sends no Access-Control-Allow-Origin there. Origins only (scheme, host,

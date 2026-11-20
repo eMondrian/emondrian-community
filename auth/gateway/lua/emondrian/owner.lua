@@ -11,7 +11,7 @@ local cjson  = require("cjson.safe")
 local config   = require("emondrian.config")
 local identity = require("emondrian.identity")
 
--- Also called on the XML/A link path, whose request line holds the token; ngx.log would add it
+-- Also called for a token in the address, whose request line holds it; ngx.log would add it
 local raw_log = require("emondrian.log").out_of_request
 
 local M = {}

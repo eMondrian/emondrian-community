@@ -6,10 +6,10 @@
 <title>eMondrian access tokens</title>
 <style>
   :root { --fg: #1d2330; --muted: #5d6677; --line: #d9dde5; --bg: #ffffff; --panel: #f5f7fa;
-          --accent: #2457c5; --danger: #b42318; --ok: #1b7a3e; }
+          --accent: #2457c5; --danger: #b42318; --ok: #1b7a3e; --warn: #8a5a00; }
   @media (prefers-color-scheme: dark) {
     :root { --fg: #e6e9ef; --muted: #9aa3b5; --line: #343b49; --bg: #161a22; --panel: #1f2430;
-            --accent: #7aa2ff; --danger: #ff7b72; --ok: #56d364; }
+            --accent: #7aa2ff; --danger: #ff7b72; --ok: #56d364; --warn: #e3b341; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
@@ -18,12 +18,15 @@
   p.lead { color: var(--muted); margin: 0 0 24px; }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
   h2 { font-size: 16px; margin: 0 0 12px; }
+  h3 { font-size: 14px; margin: 16px 0 4px; }
   form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
   label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 4px; }
   input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
-  input[name=name] { width: 260px; max-width: 100%; }
+  input[name=name] { width: 240px; max-width: 100%; }
+  input[name=user], input[name=dashboard] { width: 180px; max-width: 100%; }
   input[name=days] { width: 90px; }
   button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
   button.link { background: none; border: none; color: var(--danger); padding: 0; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -31,10 +34,10 @@
   .table-wrap { overflow-x: auto; }
   code { font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
   .new { border-color: var(--ok); }
-  .token { display: block; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; word-break: break-all; margin: 8px 0; }
+  .value-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
+  .value { flex: 1 1 320px; min-width: 0; display: block; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; word-break: break-all; }
   .error { color: var(--danger); }
-  .connect__row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
-  .connect__row .token { flex: 1 1 320px; margin: 0; }
+  .warn { color: var(--warn); }
   .muted { color: var(--muted); }
   [hidden] { display: none !important; }
 </style>
@@ -42,99 +45,147 @@
 <body>
 <main>
   <h1>Access tokens</h1>
-  <p class="lead">For Excel, Power BI, scripts and AI agents that cannot use the browser login.
-    Signed in as <strong id="user">…</strong> · <a href="/">eMondrian</a> · <a href="/logout">Log out</a></p>
+  <p class="lead">One personal token per user, for Excel, Power BI, scripts, AI agents and links to dashboards.
+    Signed in as <strong id="me">…</strong> · <a href="/">eMondrian</a> · <a href="/logout">Log out</a></p>
 
   <section>
     <h2>New token</h2>
     <form id="create">
-      <label>Name <input name="name" required maxlength="80" placeholder="e.g. Excel on my laptop"></label>
+      <label id="user-field" hidden>For user <input name="user" autocomplete="off" placeholder="yourself"></label>
+      <label>Name <input name="name" maxlength="80" placeholder="e.g. Power BI on my laptop"></label>
       <label>Valid for (days) <input name="days" type="number" min="1" required></label>
-      <button type="submit">Create</button>
+      <label>Dashboard id (optional) <input name="dashboard" autocomplete="off" pattern="[A-Za-z0-9_\-]{1,64}" placeholder="for a link"></label>
+      <button type="submit">Issue</button>
     </form>
+    <p id="replace-warning" class="warn" hidden></p>
     <p id="create-error" class="error" hidden></p>
   </section>
 
   <section id="created" class="new" hidden>
-    <h2>Copy your token now — it is not shown again</h2>
-    <code class="token" id="token"></code>
-    <button type="button" id="copy">Copy</button>
-    <p class="muted">Excel / Power BI (XML/A server <code id="xmla"></code>): user name <code id="as-user"></code>, password: the token.<br>
-      Scripts and agents: header <code>Authorization: Bearer &lt;token&gt;</code>.</p>
-  </section>
-
-  <section id="xmla-link-section">
-    <h2>Power BI live connection link</h2>
-    <div id="xmla-link-slot"></div>
+    <h2>Copy it now — it is not shown again</h2>
+    <div id="values"></div>
+    <p class="muted">Anyone who has the token has <span id="owner-says"></span> access to eMondrian until it expires
+      or is revoked: send it over a channel only its user reads. A link with the token in it opens without signing
+      in, so issue links for a user who may only read, and use a separate user for each consumer (a portal's
+      backend, a client's links): revoking one then never stops the other.</p>
   </section>
 
   <section>
-    <h2 id="list-title">Your tokens</h2>
+    <h2 id="list-title">Your token</h2>
     <label id="all-toggle" hidden><span><input type="checkbox" id="all"> show all users' tokens</span></label>
     <div class="table-wrap">
       <table>
-        <thead><tr><th id="owner-col" hidden>User</th><th>Name</th><th>Token</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
+        <thead><tr><th>User</th><th>Name</th><th>Token</th><th>Created</th><th>Expires</th><th>Last used</th><th>Issued by</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
-    <p id="empty" class="muted" hidden>No tokens.</p>
+    <p id="empty" class="muted" hidden>No active token.</p>
     <p id="list-error" class="error" hidden></p>
   </section>
 </main>
-<script src="/account/xmla-link.js" defer></script>
 <script>
   const api = "/account/api/tokens";
   const $ = (id) => document.getElementById(id);
   const day = (iso) => iso ? iso.slice(0, 16).replace("T", " ") + " UTC" : "—";
+  const params = new URLSearchParams(location.search);
+  const form = $("create");
+  let me = null, admin = false;
 
   async function call(method, path, body) {
     const res = await fetch(path, {
       method, credentials: "same-origin",
-      headers: body ? { "Content-Type": "application/json" } : {},
+      headers: body ? { "Content-Type": "application/json", Accept: "application/json" } : { Accept: "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      const e = data.error;
+      throw new Error((e && (e.message || e)) || `HTTP ${res.status}`);
+    }
     return data;
   }
 
   function cell(text) {
     const td = document.createElement("td");
-    td.textContent = text;
+    td.textContent = text == null ? "—" : text;
     return td;
+  }
+
+  // The user the form issues for: the field (administrators), else the signed-in user
+  function forUser() {
+    const v = form.elements.user.value.trim();
+    return admin && v ? v : me;
+  }
+
+  async function copy(text, button) {
+    try { await navigator.clipboard.writeText(text); button.textContent = "Copied"; }
+    catch (e) { button.textContent = "Select it and copy"; }
+  }
+
+  function value(title, text) {
+    const box = document.createDocumentFragment();
+    const h = document.createElement("h3");
+    h.textContent = title;
+    const row = document.createElement("div");
+    row.className = "value-row";
+    const code = document.createElement("code");
+    code.className = "value";
+    code.textContent = text;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Copy";
+    button.onclick = () => copy(text, button);
+    row.append(code, button);
+    box.append(h, row);
+    return box;
   }
 
   async function load() {
     $("list-error").hidden = true;
+    const all = admin && $("all").checked;
+    const user = forUser();
     let data;
     try {
-      data = await call("GET", api + ($("all").checked ? "?all=1" : ""));
+      data = await call("GET", api + (all ? "?all=1" : user && user !== me ? "?user=" + encodeURIComponent(user) : ""));
     } catch (e) {
       $("list-error").textContent = e.message;
       $("list-error").hidden = false;
       return;
     }
-    $("user").textContent = data.user;
-    $("as-user").textContent = data.user;
-    $("all-toggle").hidden = !data.admin;
-    $("owner-col").hidden = !data.all;
-    $("list-title").textContent = data.all ? "All users' tokens" : "Your tokens";
-    const days = document.querySelector("input[name=days]");
+    if (me === null) {
+      me = data.user;
+      admin = data.admin;
+      $("me").textContent = me;
+      $("user-field").hidden = !admin;
+      $("all-toggle").hidden = !admin;
+      if (params.get("dashboard")) form.elements.dashboard.value = params.get("dashboard");
+      if (admin && params.get("user") && params.get("user") !== me) {
+        form.elements.user.value = params.get("user");
+        return load();
+      }
+    }
+    $("list-title").textContent = data.all ? "All users' tokens" : data.for === me ? "Your token" : `Token of ${data.for}`;
+    const days = form.elements.days;
     days.max = data.max_days;
     if (!days.value) days.value = data.default_days;
-    $("create").querySelector("button").disabled = !data.enabled;
+    form.querySelector("button").disabled = !data.enabled;
+    const target = forUser().toLowerCase();
+    const current = data.tokens.filter((t) => t.owner.toLowerCase() === target);
+    $("replace-warning").hidden = current.length === 0;
+    $("replace-warning").textContent = `Issuing a new token revokes the current one of ${target === me.toLowerCase() ? "yours" : forUser()}`
+      + ` (${current.map((t) => t.hint).join(", ")}): Excel, Power BI, scripts and links that use it stop working within a minute.`;
     const rows = $("rows");
     rows.replaceChildren();
     for (const t of data.tokens) {
       const tr = document.createElement("tr");
-      if (data.all) tr.append(cell(t.owner));
-      tr.append(cell(t.name), cell(t.hint), cell(day(t.created)), cell(day(t.expires)), cell(day(t.last_used)));
+      tr.append(cell(t.owner), cell(t.name), cell(t.hint), cell(day(t.created)), cell(day(t.expires)),
+                cell(day(t.last_used)), cell(t.created_by || t.owner));
       const td = document.createElement("td");
       const revoke = document.createElement("button");
       revoke.className = "link";
       revoke.textContent = "Revoke";
       revoke.onclick = async () => {
-        if (!confirm(`Revoke "${t.name}"? Clients using it stop working within a minute.`)) return;
+        if (!confirm(`Revoke the token of ${t.owner} ("${t.name}")? Everything that uses it stops within a minute.`)) return;
         try { await call("DELETE", `${api}/${t.id}`); } catch (e) { alert(e.message); }
         load();
       };
@@ -145,23 +196,39 @@
     $("empty").hidden = data.tokens.length > 0;
   }
 
-  $("create").onsubmit = async (event) => {
+  form.onsubmit = async (event) => {
     event.preventDefault();
-    const form = new FormData(event.target);
     $("create-error").hidden = true;
+    const user = forUser();
+    const dashboard = form.elements.dashboard.value.trim();
+    if (!$("replace-warning").hidden && !confirm($("replace-warning").textContent + " Continue?")) return;
     try {
-      const t = await call("POST", api, { name: form.get("name"), days: Number(form.get("days")) });
-      $("token").textContent = t.token;
-      $("xmla").textContent = location.origin + "/xmla";
+      const body = { name: form.elements.name.value, days: Number(form.elements.days.value) };
+      if (user !== me) body.user = user;
+      const t = await call("POST", api, body);
+      const values = $("values");
+      values.replaceChildren();
+      const base = location.origin;
+      if (dashboard) values.append(value("Link to the dashboard (opens without signing in)",
+        `${base}/dashboard/d/${encodeURIComponent(dashboard)}?emondrian_token=${t.token}`));
+      values.append(value("Token", t.token));
+      values.append(value("Power BI live connection: the server address", `${base}/xmla?emondrian_token=${t.token}`));
+      const help = document.createElement("p");
+      help.className = "muted";
+      help.textContent = `Excel and Power BI import: server ${base}/xmla, user name ${t.owner}, password: the token.`
+        + " Scripts, the REST API and AI agents: header Authorization: Bearer <token>."
+        + ` Valid until ${day(t.expires)}.` + (t.replaced && t.replaced.length ? " The previous token no longer works." : "");
+      values.append(help);
+      $("owner-says").textContent = t.owner.toLowerCase() === me.toLowerCase() ? "your" : `${t.owner}'s`;
       $("created").hidden = false;
-      event.target.reset();
+      form.elements.name.value = "";
       load();
     } catch (e) {
       $("create-error").textContent = e.message;
       $("create-error").hidden = false;
     }
   };
-  $("copy").onclick = () => navigator.clipboard.writeText($("token").textContent);
+  form.elements.user.onchange = load;
   $("all").onchange = load;
   load();
 </script>

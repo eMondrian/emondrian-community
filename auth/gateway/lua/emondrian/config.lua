@@ -118,10 +118,12 @@ function M.load()
     basic_failure_cache = tonumber(policy.basic_failure_cache) or 10,
   }
 
-  -- Personal access tokens (emk_…), as the Basic password or a Bearer token
+  -- Personal access tokens (emk_…): the Basic password, a Bearer token, or in the address of /xmla
+  -- and of a dashboard page (link.lua)
   M.personal_tokens = gateway.personal_tokens ~= false
-  -- XML/A links, /xmla?emondrian_token=eml_… (Power BI Desktop's live connection)
-  M.xmla_links = gateway.xmla_links ~= false
+  -- personal_tokens.issue_via_agents: whether an OAuth token of a client other than the gateway
+  -- (an MCP agent's) may issue tokens on /account/api/tokens (pat.lua); off by default
+  M.issue_via_agents = gateway.issue_via_agents == true
   -- Web sites whose pages may call XML/A and the REST API from a browser (cors.lua); none by default
   M.cors_origins = {}
   local cors = type(gateway.cors) == "table" and gateway.cors or {}
@@ -191,7 +193,7 @@ function M.open_access_on()
       end
     end
     if value ~= state_cache.value and state_cache.at >= 0 then
-      -- Out of the request: its request line may hold an XML/A link's token (link.lua)
+      -- Out of the request: its request line may hold a token in the address (link.lua)
       require("emondrian.log").out_of_request(ngx.WARN, "open access switched " .. (value and "ON (authentication off)" or "OFF (authentication on)"))
     end
     state_cache.at, state_cache.value = now, value

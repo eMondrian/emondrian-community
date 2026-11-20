@@ -989,12 +989,19 @@ def apply_smtp(kc, smtp):
 
 
 def tokens_settings(identity):
-    """personal_tokens in identity.yml: tokens users create for Excel, Power BI, scripts and MCP."""
+    """personal_tokens in identity.yml: one token per user, for Excel, Power BI, scripts, MCP and
+    links to dashboards. issue_via_agents: whether MCP tools and OAuth tokens of other clients than
+    the gateway (an AI agent's) may issue tokens; issue_for_admins: whether an administrator may
+    issue a token for another administrator. Both off by default."""
     section = identity.get("personal_tokens")
     if section is False:
         section = {"enabled": False}
     section = section or {}
-    unknown = set(section) - {"enabled", "default_lifetime", "max_lifetime", "max_per_user"}
+    if not isinstance(section, dict):
+        raise ConfigError("identity.yml: personal_tokens must be a section (enabled, default_lifetime, ...)")
+    removed = set(section) & {"max_per_user"}  # warned about once, in warn_removed_links
+    unknown = set(section) - {"enabled", "default_lifetime", "max_lifetime", "issue_via_agents",
+                              "issue_for_admins"} - removed
     if unknown:
         raise ConfigError(f"identity.yml: unknown personal_tokens setting(s): {', '.join(sorted(unknown))}")
     days = {}
@@ -1005,27 +1012,26 @@ def tokens_settings(identity):
         days[key] = seconds // 86400
     if days["default_lifetime"] > days["max_lifetime"]:
         raise ConfigError("identity.yml: personal_tokens.default_lifetime is longer than max_lifetime")
+    flags = {}
+    for key in ("issue_via_agents", "issue_for_admins"):
+        value = section.get(key, False)
+        if not isinstance(value, bool):
+            raise ConfigError(f"identity.yml: personal_tokens.{key} must be true or false")
+        flags[key] = value
     return {"enabled": bool(section.get("enabled", True)), "default_days": days["default_lifetime"],
-            "max_days": days["max_lifetime"], "max_per_user": int(section.get("max_per_user", 10))}
+            "max_days": days["max_lifetime"], **flags}
 
 
-def xmla_links_settings(identity):
-    """xmla_links in identity.yml: a personal XML/A address with a token in it,
-    <PUBLIC_URL>/xmla?emondrian_token=…, for clients that send no credentials of their own (Power
-    BI Desktop's live connection). One per user; a new one replaces the old. Default: on, 30 days."""
-    section = identity.get("xmla_links")
-    if section is False:
-        section = {"enabled": False}
-    section = section or {}
-    if not isinstance(section, dict):
-        raise ConfigError("identity.yml: xmla_links must be a section (enabled, lifetime)")
-    unknown = set(section) - {"enabled", "lifetime"}
-    if unknown:
-        raise ConfigError(f"identity.yml: unknown xmla_links setting(s): {', '.join(sorted(unknown))}")
-    seconds = duration(section.get("lifetime", "30d"), "xmla_links.lifetime")
-    if seconds < 86400 or seconds % 86400 or seconds > 365 * 86400:
-        raise ConfigError("identity.yml: xmla_links.lifetime must be whole days, 1d to 365d, e.g. 30d")
-    return {"enabled": bool(section.get("enabled", True)), "days": seconds // 86400}
+def warn_removed_links(identity):
+    """xmla_links was the XML/A link (eml_) of earlier versions, and personal_tokens.max_per_user a
+    limit of several tokens per user; one personal token per user does their work now."""
+    section = identity.get("personal_tokens")
+    if isinstance(section, dict) and "max_per_user" in section:
+        log("WARNING identity.yml: personal_tokens.max_per_user is ignored: every user has one token since"
+            " 2026-11; remove the line")
+    if "xmla_links" in identity:
+        log("WARNING identity.yml: xmla_links is ignored: XML/A links (eml_) were removed in 2026-11; a"
+            " personal token works in the address instead (personal_tokens). Remove the section")
 
 
 def cors_settings(identity):
@@ -1089,8 +1095,7 @@ def write_tokens_settings(identity):
     path = os.path.join(os.path.dirname(GATEWAY_CONFIG), "tokens.json")
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        links = xmla_links_settings(identity)
-        json.dump(dict(tokens_settings(identity), links_enabled=links["enabled"], link_days=links["days"]), f)
+        json.dump(tokens_settings(identity), f)
     os.chmod(tmp, 0o644)
     os.replace(tmp, path)
 
@@ -1386,8 +1391,8 @@ def gateway_config(identity):
     return {
         "mode": identity["mode"],
         "personal_tokens": tokens_settings(identity)["enabled"],
-        # /xmla?emondrian_token=… (Power BI Desktop's live connection)
-        "xmla_links": xmla_links_settings(identity)["enabled"],
+        # Whether an MCP client's (or any other client's) OAuth token may issue tokens (pat.lua)
+        "issue_via_agents": tokens_settings(identity)["issue_via_agents"],
         # Web sites whose pages may call XML/A and the REST API from a browser; none by default
         "cors": cors_settings(identity),
         # 401 on MCP points to the OAuth metadata (Protected Resource Metadata)
@@ -1425,6 +1430,7 @@ def write_gateway_config(identity, oidc=None, proxy=None, owner_check=None):
     os.chmod(tmp, 0o600)
     os.replace(tmp, GATEWAY_CONFIG)
     write_tokens_settings(identity)
+    warn_removed_links(identity)
     if config["open_access"]["enabled"]:
         guest = config["open_access"]
         log(f"WARNING: authentication is OFF (open_access): everybody who reaches the server gets in "

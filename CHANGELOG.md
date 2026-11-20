@@ -14,6 +14,20 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+Server `10.0.95` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
+
+Modules `0.0.0.114` (was `0.0.0.113`), the authentication gateway, its configuration step and the personal-token service (run `docker compose up -d --build`). **Incompatible changes: read the first four points before you upgrade.**
+
+- **XML/A links (`eml_…`) stop working on the day you upgrade.** Every user now has one personal token, which does their work too: issue one on `/account/tokens` (or *Power BI live connection* on the main page), then change the server address of Power BI reports to `PUBLIC_URL/xmla?emondrian_token=<token>` and send new dashboard links, `PUBLIC_URL/dashboard/d/<id>?emondrian_token=<token>`. `xmla_links` in `auth/identity.yml` is ignored with a warning.
+- **One personal token per user.** Issuing one revokes the user's current one, wherever it is used. A user who has several when you upgrade keeps the newest; the others are revoked at the first start. `personal_tokens.max_per_user` is ignored with a warning. Give each consumer (a portal's backend, a client's links) a user of its own, so that revoking one stops nothing else.
+- **The REST API takes a token in the `Authorization` header only.** `?emondrian_token=` on `/api/v1` now gets 401.
+- **MCP:** `create_link`, `get_link` and `revoke_link` are removed; `create_token`, `list_tokens` and `revoke_token` replace them. `create_user` no longer takes `password` or `temporary_password`: the user chooses a password from an e-mail (`send_password_email`), or an administrator issues a token on `/account/tokens?user=<name>`.
+- **Administrators issue tokens for users**: on `/account/tokens` (*For user*, or `?user=<name>&dashboard=<id>`, which shows the dashboard's link ready to copy) and with the tokens API, `POST /account/api/tokens` `{"user", "name", "days"}`, signed in with a password (Basic) or a sign-in's Bearer token; a personal token cannot issue or manage tokens. `GET` lists tokens (never their values) with who issued them; `DELETE` revokes. Not for another administrator unless `personal_tokens.issue_for_admins: true`.
+- **No token passes through an AI agent** unless you allow it (`personal_tokens.issue_via_agents`, off by default): `create_token` then answers with the page an administrator opens in a browser, and an MCP client's OAuth token cannot issue tokens on the API. What this does not cover (an agent with a password and a shell, an agent driving an administrator's browser) is in `auth/README.md`, *Personal tokens*.
+- **A dashboard link keeps the address's other parameters**: the gateway now removes only `emondrian_token` when it redirects.
+
 ## 2026.11.20.1
 
 Server `10.0.95` · modules `0.0.0.113` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`

@@ -2,8 +2,8 @@
 --
 -- web(): browser pages; redirect to the Keycloak login when there is no session.
 -- api(): /xmla, /api, /emondrian/mcp; the credentials the request carries decide the method
---        (an XML/A link's ?emondrian_token=, Bearer token, Basic, the browser session, or on /xmla
---        a link's cookie from a dashboard opened with the link).
+--        (on /xmla a personal token in the address, ?emondrian_token=; Bearer token, Basic, the
+--        browser session, or on /xmla the cookie of a dashboard opened with a token in its address).
 --        No redirect: 401 with a challenge.
 --
 -- Both end with identity.set(), which fills the X-Forwarded-User / X-Forwarded-Groups headers.
@@ -191,28 +191,25 @@ local header_methods = {
   end,
 }
 
--- 401 for an XML/A link that failed: no challenge, since no other credentials will be taken
--- with it. The reason goes to the log only; the client is told what to do.
+-- 401 for a token in the address that failed: no challenge, since no other credentials will be
+-- taken with it. The reason goes to the log only; the client is told what to do.
 local function link_refused(token, reason)
-  link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(token) .. " from " .. ngx.var.remote_addr .. " refused: " .. reason)
+  link.raw_log(ngx.NOTICE, "token in the address " .. link.hint(token) .. " from " .. ngx.var.remote_addr
+               .. " refused: " .. reason)
   link.count_failure()
-  if rest_api() then
-    return rest_error(ngx.HTTP_UNAUTHORIZED, "UNAUTHORIZED", "This eMondrian link has expired or is no longer valid."
-      .. " Sign in to eMondrian and get a new link on " .. config.public_url .. "/account/tokens")
-  end
   ngx.status = ngx.HTTP_UNAUTHORIZED
   ngx.header["Content-Type"] = "text/plain; charset=utf-8"
   ngx.header["Cache-Control"] = "no-store"
-  ngx.say("This eMondrian link has expired or is no longer valid. Sign in to eMondrian and get a new"
-          .. " link on " .. config.public_url .. "/account/tokens")
+  ngx.say("This eMondrian link has expired or is no longer valid. Ask for a new one, or sign in to"
+          .. " eMondrian and issue a token on " .. config.public_url .. "/account/tokens")
   return ngx.exit(ngx.HTTP_UNAUTHORIZED)
 end
 
--- /xmla?emondrian_token=…: the link decides alone, whatever else the request carries.
+-- /xmla?emondrian_token=…: the token decides alone, whatever else the request carries.
 local function api_with_link(token)
   link.strip()
   if link.too_many_failures() then
-    link.raw_log(ngx.NOTICE, "XML/A link from " .. ngx.var.remote_addr .. " not checked: too many refused links")
+    link.raw_log(ngx.NOTICE, "token in the address from " .. ngx.var.remote_addr .. " not checked: too many refused")
     ngx.header["Retry-After"] = "60"
     return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
   end
@@ -241,13 +238,20 @@ function M.api()
     return open_access()
   end
 
-  -- XML/A links are for /xmla and the REST API (/api/v1); anywhere else the parameter is dropped unread
+  -- A token in the address is taken on /xmla only (and on dashboard pages, link_web); the REST API
+  -- refuses it, so that no script puts a token where proxies and histories keep it; elsewhere the
+  -- parameter is dropped unread
   local token = link.from_request()
   if token then
-    if ngx.var.uri:find("^/xmla/?$") or rest_api() then
+    if ngx.var.uri:find("^/xmla/?$") then
       return api_with_link(token)
     end
     link.strip()
+    if rest_api() then
+      link.raw_log(ngx.NOTICE, "REST API request from " .. ngx.var.remote_addr .. " with a token in the address refused")
+      return rest_error(ngx.HTTP_UNAUTHORIZED, "UNAUTHORIZED", "The REST API takes a token in the Authorization"
+        .. " header only (Bearer, or Basic with the owner's user name), never in the address.")
+    end
   end
 
   local header = ngx.var.http_authorization
@@ -276,7 +280,7 @@ function M.api()
     -- The browser OLAP client calls /xmla with the session cookie of the page it runs on
     method = "session"
     claims = oidc.session("deny")
-    -- A dashboard opened with an XML/A link runs its MDX here with the link's cookie (link.lua)
+    -- A dashboard opened with a token in its address runs its MDX here with the cookie (link.lua)
     if not claims and link.cookie() and link.cookie_path(ngx.var.uri) then
       local cookie = link.cookie()
       local reason
@@ -285,7 +289,7 @@ function M.api()
         return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
       end
       if not claims then
-        link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
+        link.raw_log(ngx.NOTICE, "token " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
                      .. " refused: " .. tostring(reason))
         return login_required()
       end
@@ -321,7 +325,7 @@ local function web_through_proxy()
   end
 end
 
--- An XML/A link opened on a dashboard page, or a dashboard request with the link's cookie (link.lua).
+-- A token in the address of a dashboard page, or a dashboard request with its cookie (link.lua).
 -- Returns true when it decided the request; false leaves it to the sign-in session as usual.
 link_web = function()
   local token = link.from_request()
@@ -343,11 +347,11 @@ link_web = function()
     if not claims then
       return link_refused(token, expires or "no user")
     end
-    -- The token goes into a cookie; the address the browser keeps has none
+    -- The token goes into a cookie; the address the browser keeps has none, and keeps the rest
     link.set_cookie(token, expires)
     ngx.header["Cache-Control"] = "no-store"
     ngx.header["Referrer-Policy"] = "no-referrer"
-    return ngx.redirect(ngx.var.uri, ngx.HTTP_MOVED_TEMPORARILY)
+    return ngx.redirect(link.address_without_token(), ngx.HTTP_MOVED_TEMPORARILY)
   end
 
   local cookie = link.cookie()
@@ -370,7 +374,7 @@ link_web = function()
     return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
   end
   if not claims or not identity.set(claims, "link") then
-    link.raw_log(ngx.NOTICE, "XML/A link " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
+    link.raw_log(ngx.NOTICE, "token " .. link.hint(cookie) .. " (cookie) from " .. ngx.var.remote_addr
                  .. " ended: " .. tostring(reason))
     link.clear_cookie()
     return false

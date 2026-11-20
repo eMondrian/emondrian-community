@@ -1,9 +1,11 @@
--- Personal access tokens (emk_…), kept by the auth-tokens service.
+-- Personal access tokens (emk_…), kept by the auth-tokens service. One per user: issuing one
+-- revokes the owner's other tokens.
 --
--- verify(): a token sent as the Basic password (user name: the owner's) or as a Bearer token.
--- api():    /account/api/tokens and /account/api/link (XML/A links, link.lua), the API of the
---           /account/tokens page; the caller is the browser session's user, whose groups go with
---           a new token.
+-- verify(): a token sent as the Basic password (user name: the owner's), as a Bearer token, or in
+--           the address of /xmla and of a dashboard page (link.lua).
+-- api():    /account/api/tokens, the tokens API: the /account/tokens page (browser session),
+--           scripts and automation (Basic with a password, Bearer). A personal token never manages
+--           tokens, so a stolen one cannot renew itself.
 --
 -- Mode broker: at every use whose verification is not cached (at most 30 s) the owner is looked
 -- up in Keycloak (owner.lua): a deleted or disabled owner's tokens are refused, and the token
@@ -24,13 +26,21 @@ local identity = require("emondrian.identity")
 local owner    = require("emondrian.owner")
 local oidc     = require("emondrian.oidc")
 
+-- Messages without the request line: on /xmla and dashboard pages it holds the token (log.lua)
+local raw_log  = require("emondrian.log").out_of_request
+
 local M = {}
 
 local SERVICE = "http://auth-tokens:8080"
 local PREFIX = "emk_"
+-- emk_ + 32 random bytes in base64url (auth/tokens/tokens.py)
+local FORMAT = "^emk_[A-Za-z0-9_-]+$"
+local LENGTH = 4 + 43
 -- A revoked token keeps working for at most this long (the verification cache)
 local CACHE_SECONDS = 30
 local ADMIN_ROLE = "/emondrian-admins"
+-- Refused Basic passwords on the tokens API per client address and minute before it answers 429
+local FAILURES_PER_MINUTE = 10
 
 local function hex_sha256(value)
   local hash = sha256:new()
@@ -47,9 +57,15 @@ local function service_secret()
   end
   return secret
 end
+M.service_secret = service_secret
 
 function M.is_token(value)
   return type(value) == "string" and value:sub(1, #PREFIX) == PREFIX
+end
+
+-- Whether a value has the shape of a token, as it must to be looked up at all.
+function M.well_formed(value)
+  return type(value) == "string" and #value == LENGTH and value:find(FORMAT) ~= nil
 end
 
 -- Whether an Authorization header carries a personal token (as Bearer or as the Basic password).
@@ -70,8 +86,8 @@ function M.in_header(authorization)
 end
 
 -- Claims as the rest of the gateway knows them (identity.set), built from the token's owner.
-local function claims_of(owner, groups)
-  return { [config.username_claim] = owner, [config.groups_claims[1] or "groups"] = groups }
+local function claims_of(user, groups)
+  return { [config.username_claim] = user, [config.groups_claims[1] or "groups"] = groups }
 end
 
 -- The stored groups that are full paths, and how many plain names were dropped.
@@ -87,8 +103,9 @@ local function path_groups(groups)
   return kept, dropped
 end
 
--- Returns claims, or nil (unknown, expired, revoked, or another user's token), or nil and
--- "unavailable" (the service failed).
+-- Returns claims and the token's expiry (epoch seconds); or nil (unknown, expired, revoked,
+-- another user's token, or an owner deleted or disabled in Keycloak); or nil and "unavailable"
+-- (the service or Keycloak failed).
 function M.verify(token, user)
   local key = "pat:" .. hex_sha256(config.secret .. "\0" .. token .. "\0" .. (user or ""):lower())
   local cache = ngx.shared.basic_auth
@@ -98,7 +115,10 @@ function M.verify(token, user)
   end
   if cached then
     local entry = cjson.decode(cached)
-    return claims_of(entry.user, entry.groups)
+    if entry and (not entry.expires or ngx.now() < entry.expires) then
+      return claims_of(entry.user, entry.groups), nil, entry.expires
+    end
+    cache:delete(key)
   end
 
   local httpc = http.new()
@@ -109,17 +129,17 @@ function M.verify(token, user)
     body    = cjson.encode({ token = token, user = user }),
   })
   if not res then
-    ngx.log(ngx.ERR, "auth-tokens unreachable: ", err)
+    raw_log(ngx.ERR, "auth-tokens unreachable: " .. tostring(err))
     return nil, "unavailable"
   end
   if res.status == 404 then
-    ngx.log(ngx.NOTICE, "personal token refused", user and (" for user " .. identity.one_line(user)) or "")
+    raw_log(ngx.NOTICE, "personal token refused" .. (user and (" for user " .. identity.one_line(user)) or ""))
     cache:set(key, "", config.policy.basic_failure_cache)
     return nil
   end
   local entry = res.status == 200 and cjson.decode(res.body)
   if type(entry) ~= "table" or type(entry.user) ~= "string" then
-    ngx.log(ngx.ERR, "auth-tokens answered HTTP ", res.status)
+    raw_log(ngx.ERR, "auth-tokens answered HTTP " .. res.status)
     return nil, "unavailable"
   end
   local groups
@@ -130,8 +150,8 @@ function M.verify(token, user)
       if reason == "unavailable" then
         return nil, "unavailable"
       end
-      ngx.log(ngx.NOTICE, "personal token of ", identity.one_line(entry.user), " refused: the owner no longer",
-              " exists or is disabled in Keycloak")
+      raw_log(ngx.NOTICE, "personal token of " .. identity.one_line(entry.user) .. " refused: the owner no longer"
+              .. " exists or is disabled in Keycloak")
       cache:set(key, "", config.policy.basic_failure_cache)
       return nil
     end
@@ -139,84 +159,199 @@ function M.verify(token, user)
     local dropped
     groups, dropped = path_groups(entry.groups)
     if dropped > 0 then
-      ngx.log(ngx.WARN, "personal token of ", identity.one_line(entry.user), " was issued before groups were",
-              " forwarded by path: its ", dropped, " group(s) are ignored until the owner issues a new token")
+      raw_log(ngx.WARN, "personal token of " .. identity.one_line(entry.user) .. " was issued before groups were"
+              .. " forwarded by path: its " .. dropped .. " group(s) are ignored until the owner issues a new token")
     end
   end
-  cache:set(key, cjson.encode({ user = entry.user, groups = groups }), CACHE_SECONDS)
-  return claims_of(entry.user, groups)
+  local expires = tonumber(entry.expires_at)
+  local ttl = CACHE_SECONDS
+  if expires then
+    ttl = math.min(ttl, expires - ngx.now())
+  end
+  if ttl > 0 then
+    cache:set(key, cjson.encode({ user = entry.user, groups = groups, expires = expires }), ttl)
+  end
+  return claims_of(entry.user, groups), nil, expires
 end
 
--- Access phase of /account/api/tokens: the browser session decides who the caller is.
+-- The tokens API ---------------------------------------------------------------------------------
+
+-- Answers in the REST API's error format and ends the request.
+local function fail(status, code, message)
+  ngx.status = status
+  ngx.header["Content-Type"] = "application/json; charset=utf-8"
+  ngx.header["Cache-Control"] = "no-store"
+  ngx.say(cjson.encode({ error = { code = code, message = message } }))
+  return ngx.exit(status)
+end
+
+local function too_many_failures(count)
+  local dict = ngx.shared.link_failures
+  local key = "api:" .. (ngx.var.remote_addr or "-")
+  if count then
+    dict:incr(key, 1, 0, 60)
+    return
+  end
+  return (dict:get(key) or 0) >= FAILURES_PER_MINUTE
+end
+
+-- Whether a provider access token was issued to the gateway's own client: the browser session
+-- and Basic (the gateway's password grant) always are; an MCP client's or another program's
+-- token is not. Entra's v1 tokens name the client appid instead of azp.
+local function own_client(claims)
+  local client = claims.azp or claims.appid
+  return type(client) == "string" and client == config.provider.client_id
+end
+
+-- Who calls: claims and the method ("session", "basic", "bearer", "proxy"), or the request ends.
+local function caller()
+  local header = ngx.var.http_authorization
+  if config.mode == "trusted-proxy" then
+    if header and M.in_header(header) then
+      return fail(401, "UNAUTHORIZED", "A personal token cannot issue or manage tokens; sign in instead.")
+    end
+    return require("emondrian.trusted_proxy").identity(), "proxy"
+  end
+  if not header then
+    return oidc.session("deny"), "session"
+  end
+  if M.in_header(header) then
+    return fail(401, "UNAUTHORIZED", "A personal token cannot issue or manage tokens. Use your password"
+      .. " (Basic), a sign-in token (Bearer) or the page " .. config.public_url .. "/account/tokens.")
+  end
+  local scheme = (header:match("^(%a+)%s") or ""):lower()
+  if scheme == "basic" then
+    if too_many_failures(false) then
+      ngx.header["Retry-After"] = "60"
+      return fail(429, "TOO_MANY_REQUESTS", "Too many refused passwords from this address; try again in a minute.")
+    end
+    local basic = require("emondrian.basic")
+    local user, password = basic.parse(header)
+    if not user or not config.provider.password_grant then
+      return fail(401, "UNAUTHORIZED", "Basic sign-in is not available here; use the page or a Bearer token.")
+    end
+    local claims, err = basic.authenticate(user, password)
+    if err == "unavailable" then
+      return fail(503, "UNAVAILABLE", "The identity provider cannot be reached; try again shortly.")
+    end
+    if not claims then
+      too_many_failures(true)
+      ngx.header["WWW-Authenticate"] = 'Basic realm="eMondrian", charset="UTF-8"'
+      return fail(401, "UNAUTHORIZED", "Wrong user name or password.")
+    end
+    return claims, "basic"
+  end
+  if scheme == "bearer" then
+    local claims, err = oidc.verify_access_token(header:match("^%a+%s+(%S+)"))
+    if not claims then
+      return fail(401, "UNAUTHORIZED", "Token refused: " .. tostring(err))
+    end
+    return claims, "bearer"
+  end
+  return fail(401, "UNAUTHORIZED", "Sign in with Basic (your password), Bearer, or the page "
+    .. config.public_url .. "/account/tokens.")
+end
+
+-- The request body's "user" (POST): the user a token is issued for, or nil.
+local function wanted_user()
+  ngx.req.read_body()
+  local data = cjson.decode(ngx.req.get_body_data() or "")
+  if type(data) ~= "table" then
+    return fail(400, "BAD_REQUEST", "The body must be a JSON object: {\"user\"?, \"name\"?, \"days\"?}.")
+  end
+  local user = data.user
+  if user == nil or user == cjson.null or user == "" then
+    return nil
+  end
+  if type(user) ~= "string" then
+    return fail(400, "BAD_REQUEST", "user must be a user name.")
+  end
+  return user
+end
+
+-- Access phase of /account/api/tokens[/<id>].
 function M.api()
+  ngx.req.clear_header("X-Token-Target")
+  ngx.req.clear_header("X-Token-Target-Groups")
+  ngx.req.clear_header("X-Token-Via")
+  ngx.req.clear_header("X-Token-Admin")
   if config.open_access_on() then
     -- Tokens belong to logged-in users; with authentication off there are none
-    ngx.status = ngx.HTTP_FORBIDDEN
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say('{"error":"authentication is off (open_access in identity.yml): no personal tokens"}')
-    return ngx.exit(ngx.HTTP_FORBIDDEN)
+    return fail(403, "FORBIDDEN", "Authentication is off (open_access in identity.yml): no personal tokens.")
   end
-  local claims
-  if config.mode == "trusted-proxy" then
-    claims = require("emondrian.trusted_proxy").identity()
-  else
-    claims = oidc.session("deny")
+  if not config.personal_tokens then
+    return fail(403, "FORBIDDEN", "Personal tokens are turned off (personal_tokens in identity.yml).")
   end
+  local method = ngx.req.get_method()
+  local claims, how = caller()
   local user, groups = identity.from_claims(claims)
   if not user then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say('{"error":"not logged in"}')
-    return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+    return fail(401, "UNAUTHORIZED", "Not signed in.")
   end
-  identity.set(claims, "session")
-  -- Changes only from this site's own page (SameSite=Lax already keeps other sites' POSTs out)
-  local method = ngx.req.get_method()
-  if method ~= "GET" then
-    local origin = ngx.var.http_origin
-    if origin ~= config.public_url then
-      ngx.status = ngx.HTTP_FORBIDDEN
-      ngx.say('{"error":"cross-origin request refused"}')
-      return ngx.exit(ngx.HTTP_FORBIDDEN)
-    end
-  end
-  -- A token is checked against its owner in Keycloak at every use (verify): refuse to issue one
-  -- that could never pass, with the reason, rather than one that fails later
-  if method == "POST" and config.owner_check then
-    local _, reason = owner.current(user)
-    if reason == "unavailable" then
-      ngx.status = ngx.HTTP_SERVICE_UNAVAILABLE
-      ngx.header["Content-Type"] = "application/json"
-      ngx.say('{"error":"Keycloak cannot be reached to check your account; try again shortly"}')
-      return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
-    elseif reason == "gone" then
-      ngx.log(ngx.NOTICE, "personal token not issued to ", identity.one_line(user), ": no such account in",
-              " Keycloak, or disabled")
-      ngx.status = ngx.HTTP_FORBIDDEN
-      ngx.header["Content-Type"] = "application/json"
-      ngx.say(cjson.encode({ error = "No personal tokens for this account: it does not exist in Keycloak, or"
-        .. " is disabled there, so a token could not be checked against it. Ask the administrator." }))
-      return ngx.exit(ngx.HTTP_FORBIDDEN)
-    end
+  identity.set(claims, how)
+  -- A page of this site only: a browser sends the cookie with other sites' requests too
+  -- (SameSite=Lax keeps their POSTs out; the Origin check covers the rest). A script with Basic or
+  -- Bearer sends no Origin; one that does must be this site.
+  local origin = ngx.var.http_origin
+  if (how == "session" and method ~= "GET" and origin ~= config.public_url)
+      or (origin and origin ~= config.public_url) then
+    return fail(403, "FORBIDDEN", "Cross-origin request refused.")
   end
   local admin = false
-  for role in (ngx.var.auth_groups or ""):gmatch("[^,]+") do
-    if role == ADMIN_ROLE then
+  for _, group in ipairs(groups) do
+    if group == ADMIN_ROLE then
       admin = true
     end
   end
+
+  if method == "POST" then
+    -- issue_via_agents: off, a token is issued only to the gateway's own sign-ins (the page,
+    -- Basic), never to an MCP client's or another program's OAuth token
+    if how == "bearer" and not config.issue_via_agents and not own_client(claims) then
+      ngx.log(ngx.NOTICE, "token not issued to ", identity.one_line(user), ": Bearer token of client ",
+              identity.one_line(tostring(claims.azp or claims.appid)))
+      return fail(403, "FORBIDDEN", "issuing tokens via AI agents is disabled (personal_tokens.issue_via_agents"
+        .. " in identity.yml): an OAuth token of this client cannot issue tokens. Open "
+        .. config.public_url .. "/account/tokens in a browser.")
+    end
+    local target = wanted_user()
+    if target and target:lower() == user:lower() then
+      target = nil
+    end
+    if target and not admin then
+      return fail(403, "FORBIDDEN", "Only administrators (" .. ADMIN_ROLE .. ") issue tokens for other users.")
+    end
+    if target and not config.owner_check then
+      return fail(400, "BAD_REQUEST", "Tokens for other users need Keycloak to look the user up (mode broker).")
+    end
+    -- A token is checked against its owner in Keycloak at every use (verify): refuse to issue one
+    -- that could never pass, with the reason, rather than one that fails later
+    if config.owner_check then
+      local owner_groups, reason = owner.current(target or user)
+      if reason == "unavailable" then
+        return fail(503, "UNAVAILABLE", "Keycloak cannot be reached to check the account; try again shortly.")
+      elseif not owner_groups then
+        ngx.log(ngx.NOTICE, "personal token not issued for ", identity.one_line(target or user),
+                ": no such account in Keycloak, or disabled")
+        if target then
+          return fail(404, "NOT_FOUND", "No user " .. target .. " in Keycloak, or the user is disabled.")
+        end
+        return fail(403, "FORBIDDEN", "No personal tokens for this account: it does not exist in Keycloak, or"
+          .. " is disabled there, so a token could not be checked against it. Ask the administrator.")
+      end
+      if target then
+        ngx.req.set_header("X-Token-Target", target)
+        ngx.req.set_header("X-Token-Target-Groups", table.concat(owner_groups, ","))
+      end
+    end
+  end
+
   ngx.req.clear_header("Authorization")
   ngx.req.clear_header("Cookie")
-  -- A link for another user is issued only by eMondrian's MCP tool for an administrator, straight
-  -- to auth-tokens; a browser's copy of these headers must never reach it
-  ngx.req.clear_header("X-Token-Target")
-  ngx.req.clear_header("X-Token-Target-Groups")
   ngx.req.set_header("X-Tokens-Secret", service_secret())
   ngx.req.set_header("X-Token-User", user)
   ngx.req.set_header("X-Token-Groups", table.concat(groups, ","))
   ngx.req.set_header("X-Token-Admin", admin and "true" or "false")
-  -- An XML/A link is this address plus /xmla, never the Host the browser sent
-  ngx.req.set_header("X-Public-Url", config.public_url)
 end
 
 return M
