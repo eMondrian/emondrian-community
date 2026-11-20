@@ -14,6 +14,10 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## Unreleased
+
+- **Entry `1.5.0`** (was `1.3.2`): the main page has its own *Power BI live connection* section on the personal tokens API: issue a token (with a confirmation when the user has one), copy the server address once, revoke it, or open *Manage tokens*. The gateway's script adds its section only to older entry images (no `data-personal-token` on the page).
+
 ## 2026.11.20.2
 
 Server `10.0.95` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.3.2`
