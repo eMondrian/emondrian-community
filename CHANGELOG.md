@@ -14,6 +14,15 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.21.2
+
+Server `10.0.98` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.98` (was `10.0.97`, engine `9.3.0-emondrian.96`): captions in Excel (run `docker compose pull` and `docker compose up -d`). The modules, the web tools and the entry page are unchanged.
+
+- **No more "#null" captions.** A member whose key is empty in the data (Store Size in SQFT for the stores with no size) is named `#null`, and Excel showed that name. Its caption is now blank; its name and unique name stay `#null`, so queries and reports that name it keep working.
+- **A placeholder for a blank member carries its parent's caption.** In a ragged hierarchy shown to Excel, Vatican › Vatican › #null is now Vatican › Vatican › Vatican.
+
 ## 2026.11.21.1
 
 Server `10.0.97` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
