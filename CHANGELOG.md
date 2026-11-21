@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.21.1
+
+Server `10.0.97` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.97` (was `10.0.96`, engine `9.3.0-emondrian.95`): ragged hierarchies in Excel (run `docker compose pull` and `docker compose up -d`). The modules, the web tools and the entry page are unchanged.
+
+- **Ragged hierarchies expand in Excel PivotTables.** A hierarchy whose levels hide members (`hideMemberIf`, such as Store in the Sales Ragged cube, where Israel has no state) failed with error 0x800A03EC on every drill-down. Excel connects with *MDX Compatibility=1*, and as with Analysis Services the hidden members are now shown as placeholders under that setting (Israel › Israel › Haifa), so the hierarchy looks balanced. With *MDX Compatibility=2*, or a client that does not send the setting, they stay hidden as before.
+
 ## 2026.11.20.4
 
 Server `10.0.96` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
