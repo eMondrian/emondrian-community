@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.22.1
+
+Server `10.0.99` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.99` (was `10.0.98`, engine `9.3.0-emondrian.97`): slicers in Excel (run `docker compose pull` and `docker compose up -d`). The modules, the web tools and the entry page are unchanged.
+
+- **Slicers work on an OLAP pivot in Excel.** Excel asks the server how many members a slicer has and which of them have data, and could not read the whole numbers the server sent back (typed `xsd:integer`), so inserting a slicer failed. An MDX reply now types them `xsd:int`, as Analysis Services does. DAX replies are unchanged.
+
 ## 2026.11.21.2
 
 Server `10.0.98` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
