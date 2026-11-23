@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.23
+
+Server `10.0.99` · modules `0.0.0.115` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Modules `0.0.0.115` (were `0.0.0.114`): run `git pull` and `docker compose restart eMondrian`. The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+- **`execute_query` returns JSON on request.** The MCP tool takes `format`: `text` (the default, as before), `json`, a flat table of columns and rows, or `json-detailed`, which also gives each member's unique name and each value's formatted text. These are the same shapes as the REST API's. `maxRows` limits the rows returned (default 1,000, at most 10,000), and `truncated` says when rows were left out. A result with more than two axes cannot be a flat table and is refused.
+
 ## 2026.11.22.1
 
 Server `10.0.99` · modules `0.0.0.114` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
