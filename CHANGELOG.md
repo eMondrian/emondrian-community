@@ -14,6 +14,15 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.24.3
+
+Server `10.0.103` · modules `0.0.0.119` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.103` (was `10.0.102`, engine `9.3.0-emondrian.101`) and modules `0.0.0.119` (were `0.0.0.118`): a manager's own figures in Power BI (run `git pull`, `docker compose pull` and `docker compose up -d`). The web tools, the Dashboard and the entry page are unchanged.
+
+- **A manager's own figures in Power BI's parent-child matrix.** In a parent-child hierarchy such as an organisation chart, a manager can have figures of their own besides their team's. Power BI shows the hierarchy as Level 01, Level 02, …; a manager's own figures now appear as one more row under the manager, with the manager's name, as in Analysis Services. A total after "Expand all" now includes them: in FoodMart HR it is 39,431.67 and 616 employees, as before expanding, where it was 38,567.67 and 615.
+- **A data member shows its manager's name.** In MDX, the data member of a parent-child member (`.DataMember`) was named by its key ("1"); it now has the member's name. `DataMember` of a data member is the member itself, as in Analysis Services.
+
 ## 2026.11.24.2
 
 Server `10.0.102` · modules `0.0.0.118` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
