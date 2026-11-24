@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.24.2
+
+Server `10.0.102` · modules `0.0.0.118` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.102` (was `10.0.101`, engine `9.3.0-emondrian.100`) and modules `0.0.0.118` (were `0.0.0.117`, a version step only): the rest of the Top N fix of 2026.11.24.1 (run `git pull`, `docker compose pull` and `docker compose up -d`). The web tools, the Dashboard and the entry page are unchanged.
+
+- **A Top N table's total under a page filter that keeps several members.** With a page filter keeping two states, a Top 3 cities table ranked its cities in the first state only, so its total left out the top cities of the other one (in FoodMart, Tacoma under a filter keeping CA and WA). Several selected members are now all taken into account.
+
 ## 2026.11.24.1
 
 Server `10.0.101` · modules `0.0.0.117` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
