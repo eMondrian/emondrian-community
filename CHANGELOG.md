@@ -14,6 +14,17 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.24.1
+
+Server `10.0.101` · modules `0.0.0.117` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.101` (was `10.0.100`, engine `9.3.0-emondrian.99`) and modules `0.0.0.117` (were `0.0.0.116`): Power BI filters that act on the same column (run `git pull`, `docker compose pull` and `docker compose up -d`). The web tools, the Dashboard and the entry page are unchanged.
+
+- **Two filters on the same column now combine.** In Power BI a table with a Top N filter, clicked on a row outside its top N, filters the other visuals by that row and by the Top N at once; nothing is in both, so they must be empty. The later filter used to replace the earlier one, and the other visuals showed numbers.
+- **A Top N filter narrows the rows of its own table.** Under a Top 3 cities filter, a list of states shows the states of those three cities, not every state.
+- **No more rows with only a caption.** When the filters left nothing, a visual could show a "(Blank)" bar or empty matrix rows. Such a result is now empty.
+- **A Top N table's total under a page or report filter.** The total of a table with a Top N filter, on a page with a filter of its own, covered only some of its rows (one city of three). The Top N is now ranked within the page's filters, and the total covers all the rows shown.
+
 ## 2026.11.24
 
 Server `10.0.100` · modules `0.0.0.116` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
