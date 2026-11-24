@@ -14,6 +14,16 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.24
+
+Server `10.0.100` · modules `0.0.0.116` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Server `10.0.100` (was `10.0.99`, engine `9.3.0-emondrian.98`) and modules `0.0.0.116` (were `0.0.0.115`): a Power BI matrix over a parent-child hierarchy (run `git pull`, `docker compose pull` and `docker compose up -d`). The web tools, the Dashboard and the entry page are unchanged.
+
+- **Distinct counts over a parent-child hierarchy.** A member of a parent-child hierarchy, such as a manager in an organisation chart, stands for everybody under it. A distinct count over several such members (an MDX `Aggregate`, a set in `WHERE`, or the filter Power BI puts around a matrix total) counted the members themselves: a matrix over the Employees of FoodMart's HR cube showed 1 employee in its total instead of 616. It now counts the rows under them. Sums were right before and are unchanged.
+- **A set of all of a manager's children is no longer read as the manager.** The manager has figures of their own besides the team's, so in FoodMart HR the children of Sheri Nowmer are 615 employees and Sheri Nowmer is 616.
+- **Power BI's "Expand all" on a parent-child hierarchy shows each parent once.** Expanding one level showed the parent once per child, with that child's numbers. In FoodMart HR that was five "Sheri Nowmer" rows instead of one.
+
 ## 2026.11.23
 
 Server `10.0.99` · modules `0.0.0.115` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
