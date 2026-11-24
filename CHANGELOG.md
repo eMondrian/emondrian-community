@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.24.4
+
+Server `10.0.103` · modules `0.0.0.120` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Modules `0.0.0.120` (were `0.0.0.119`): run `git pull` and `docker compose restart eMondrian`. The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+- **An AI agent can make an Excel workbook for a cube.** The new MCP tool `make_excel_pivot` writes an `.xlsx` with a PivotTable connected live to the server, laid out with the measures, rows, columns and filters the agent chooses, and returns it for the agent to save. The workbook holds no data and no password: Excel reads the numbers from the server when the file is opened and refreshed, under the reader's own sign-in, so roles still decide what each reader sees. It needs no licence key. Give it the server's XML/A address as Excel will reach it (`dataSource`), unless the server sets one (`emondrian.mcp.publicXmlaUrl`).
+
 ## 2026.11.24.3
 
 Server `10.0.103` · modules `0.0.0.119` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
