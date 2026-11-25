@@ -455,7 +455,10 @@ Then set in `.env` `PUBLIC_URL=https://bi.example.com` and `EMONDRIAN_TLS_PORT=4
 it at `0`, a random unused port), and run `docker compose up -d`. Port `EMONDRIAN_PORT` then only
 redirects to HTTPS, with `308 Permanent Redirect`, so a POST (XML/A, MCP) arrives as a POST with its
 body. Give clients the `https://` address all the same: a request sent to `http://` has already
-crossed the network unencrypted, password or token included, before it is redirected. Excel and Power BI accept only certificates Windows trusts: use one of your
+crossed the network unencrypted, password or token included, before it is redirected. MCP clients
+that log in with OAuth (Claude Code and others) check that the server's address matches the one
+they were given, so add them with the `https://` address; an `http://` one fails even after the
+redirect. Excel and Power BI accept only certificates Windows trusts: use one of your
 organisation's CA or a public one, not a self-signed one.
 
 **Once authentication is on, MCP agents that log in with OAuth from another machine need HTTPS**
