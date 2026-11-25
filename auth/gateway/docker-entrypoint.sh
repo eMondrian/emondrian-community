@@ -57,7 +57,9 @@ if [ -f /etc/nginx/tls/tls.crt ] && [ -f /etc/nginx/tls/tls.key ]; then
 server {
     listen 80;
     location / {
-        return 301 $PUBLIC_URL\$request_uri;
+        # 308, not 301: a client may turn a 301'd POST into a GET without its body, and XML/A
+        # (Excel, Power BI) and MCP are POSTs. 308 keeps the method and the body.
+        return 308 $PUBLIC_URL\$request_uri;
     }
 }
 

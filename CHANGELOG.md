@@ -14,6 +14,14 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.25.1
+
+Server `10.0.103` · modules `0.0.0.121` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+The authentication gateway only (run `git pull` and `docker compose up -d --build`). The server image, the modules, the web tools, the Dashboard and the entry page are unchanged.
+
+- **With HTTPS on, an `http://` address works for Excel, Power BI and MCP clients too.** The plain-HTTP port redirected with `301`, which clients may follow by sending a POST again as a GET without its body; XML/A and MCP requests are POSTs, so they failed. It now redirects with `308`, which keeps the method and the body. Still give clients the `https://` address: a request sent to `http://` crosses the network unencrypted before it is redirected.
+
 ## 2026.11.25
 
 Server `10.0.103` · modules `0.0.0.121` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
