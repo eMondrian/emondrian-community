@@ -14,6 +14,16 @@ docker compose up -d --build --remove-orphans
 configuration step and the personal-token service); without it they keep running the previous
 release's code next to the new server. `./setup.sh` (Windows: `windows-setup.ps1`) does the same.
 
+## 2026.11.25
+
+Server `10.0.103` · modules `0.0.0.121` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
+
+Modules `0.0.0.121` (were `0.0.0.120`): run `git pull` and `docker compose restart eMondrian`. The server image, the web tools, the Dashboard, the entry page and `docker-compose.yml` are unchanged.
+
+- **Currency measures keep their format in Excel.** `make_excel_pivot` now gives a measure formatted `Currency` Excel's currency format, shown in the reader's own currency, where it used to fall back to General.
+- **DRILLTHROUGH through MCP gives a clear answer.** `execute_query` runs SELECT queries; a DRILLTHROUGH statement used to fail with an internal error and is now refused with a message that points to `/xmla` (Excel's Show Details) instead.
+- **Clearer answers for an agent on a catalog that is synthetic-only for agents.** A refusal for a missing right names the user and the right again (it showed `'?'`), `list_catalogs` names the `(synthetic)` copy only when it exists, and the refusal no longer promises the structure tools: it says which right each of them needs.
+
 ## 2026.11.24.4
 
 Server `10.0.103` · modules `0.0.0.120` · OLAP Client `1.2.3` · Dashboard `0.2.0` · entry `1.5.0`
