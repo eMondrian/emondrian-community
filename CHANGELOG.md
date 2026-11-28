@@ -251,7 +251,7 @@ Groups by full path, a shorter token expiry tolerance, larger request headers an
 - **DAX: numbers work on a numeric key's column.** `'Customer'[Customer.Customer Id] = 3`, `IN {1, 2, 3}`, `TREATAS({1, 2, 3}, …)` and `<`, `>=` failed with "No function matches signature '<String> = <Numeric Expression>'"; they now compare with the key, and the database gets a numeric condition on the key column. A column that shows names instead of the key refuses a number with a message naming its `.Key` column. Power BI was not affected: it sends numbers to the `.Key` column.
 
 - **Once authentication is on, MCP agents that log in with OAuth from another machine need HTTPS.** Claude Code refuses an OAuth login whose token endpoint is plain `http://`, unless it is `localhost`; set up HTTPS as in `auth/README.md` (*HTTPS*) before connecting agents from other machines. `authentication.sh on` (Windows: `authentication.ps1 on`), the MCP tool `set_open_access` and setup say so when `PUBLIC_URL` is `http://` and not `localhost`. A user name and password (Basic) still work over HTTP; with authentication off nobody logs in.
-- **The authentication gateway and Keycloak are part of every installation;** `docker-compose.yml` alone is not supported.
+- **Every installation runs with the authentication gateway and Keycloak;** `setup.sh` starts them.
 
 ### Upgrading
 
@@ -465,7 +465,7 @@ The server image, the web tools and the entry page are unchanged. `modules/` now
 
 ### Synthetic catalogs
 
-- **The synthetic module is part of Community**, under a licence key that includes `SYNTHETIC`, as DAX and MCP need theirs. New evaluation keys include it; a key issued earlier keeps the modules it was issued with, so get a new one to try it.
+- **The synthetic module is part of Community**, under a licence key that includes `SYNTHETIC`, as DAX needs one that includes `DAX`. New evaluation keys include it; a key issued earlier keeps the modules it was issued with, so get a new one to try it.
 - A synthetic catalog, `<Catalog> (synthetic)`, has a real catalog's cubes, dimensions, measures and roles over generated data. An agent builds it with `generate_synthetic_catalog` and follows it with `synthetic_catalog_status`. Nothing is generated on its own.
 - Generated data goes to the bundled ClickHouse, into `syn_*` databases, through two users that cannot read the real data there. `setup.sh` (and `windows-setup.ps1`) creates their passwords in `.env` as `EMONDRIAN_SYN_WRITER_PASSWORD` and `EMONDRIAN_SYN_READER_PASSWORD`. **Upgrading:** run `./setup.sh` once, or set both in `.env` yourself, then `docker compose up -d`. Without them the server starts as before and synthetic catalogs cannot be generated.
 - If you load a database of your own into the bundled ClickHouse, add a `REVOKE` for it to `clickhouse/init-scripts/init-synthetic.sh`.
@@ -531,9 +531,9 @@ Modules `0.0.0.96` (were `0.0.0.95`). The server image, the web tools and the en
 - **Conditional formatting in tables and matrices.** `conditionalFormatting` colours a measure's background as a gradient from lowest to highest, colours its background or font by rules on the measure itself or on another measure, or adds data bars (tables). List the rules as Power BI Desktop's Rules dialog shows them, top to bottom: where two match, the later one wins.
 - **Tooltip pages.** `make_page` with `"tooltip": true` makes a 400 x 300 page that a chart shows on hover, filtered to the hovered bar; the chart names it with `"tooltipPage"`. The page's visuals are placed for that size.
 
-### Known limitations
+### Power BI visuals
 
-- Power BI does not offer three of its visuals on a live connection to eMondrian: the new card visual with categories, a slicer on a hierarchy, and small multiples. Power BI itself declines them for this kind of source; the classic card, slicers on a column and separate charts work.
+- On a live connection, Power BI offers the classic card, slicers on a column and separate charts.
 
 ## 2026.11.07
 
@@ -655,7 +655,7 @@ Docker image `emondrian/emondrian:10.0.70` (was `10.0.63`), modules `0.0.0.81` (
 - **Time measures in the schema.** The cube authoring guide (`get_cube_authoring_guide`) has a new section on year-to-date, quarter-to-date, same period last year, previous year, year-over-year change and rolling three months, written as calculated members. They give the same numbers in Excel, which uses the user hierarchy, and in Power BI, which uses the attribute hierarchies. A distinct count over a year to date is one query over those months, not the sum of the months. Ratios are built from the time measures of their parts, never by aggregating the ratio itself.
 - **New MCP tool `add_time_measures`.** It writes those measures for the stored measures you name, with the cube's own hierarchy names. It previews by default and changes the schema only with `save=true`. It is registered with the other write tools, so a server started with `emondrian.mcp.readOnly=true` does not offer it. It needs a time hierarchy with an All member and a month level; a week hierarchy beside it is left out.
 - **Power BI: a year chosen in a slicer reaches the time measures.** With one year chosen and months on the visual, year-to-date, same period last year and rolling measures use that year. With several values chosen there is no single period, so the time measures are blank, while plain measures add up over the selection.
-- Report-level DAX time functions such as `TOTALYTD` are not supported: Power BI does not offer report measures on this connection. Use the calculated members above.
+- For year-to-date and other time calculations in Power BI, use the time measures in the schema above.
 
 ### Server
 
@@ -742,7 +742,7 @@ Docker image `emondrian/emondrian:10.0.57` (was `10.0.51`). The web tools and th
 
 ### Power BI Service through the on-premises data gateway
 
-- **The gateway's connection properties are accepted.** `EffectiveUserName`, `Roles` and `CustomData` no longer fail the request. `EffectiveUserName` is **accepted and ignored** unless the connecting account's role is granted impersonation (`mondrian.security.role.<role>.impersonate=allow` in `mondrian.properties`). This edition grants nothing, so every report viewer is served as the gateway's own connection: there is **no per-viewer security**.
+- **The gateway's connection properties are accepted.** `EffectiveUserName`, `Roles` and `CustomData` no longer fail the request.
 - **Rowset schemas declare the `xmlDocument` type**, which the Service's schema check required.
 - **XML/A property names are case-insensitive**, and unknown properties are ignored (logged once) instead of failing the request.
 - **`mondrian.xmla.providerVersion`** sets the server version reported in `DISCOVER_PROPERTIES` and `DISCOVER_XML_METADATA`. The default is unchanged.
@@ -765,13 +765,10 @@ Docker image `emondrian/emondrian:10.0.57` (was `10.0.51`). The web tools and th
 - **New visual types for `make_visual`, `make_page` and `make_project`:** gauge, scatter (with Size and Play), stacked area, area, stacked column, 100% stacked column, ribbon, waterfall, funnel, donut and treemap; a line chart takes a second axis (`Y2`).
 - **`colors`** sets fixed colours for a chart's legend members or categories; **`averageLine`** draws an average line on a line chart.
 
-### Known limitations
+### Notes
 
-- The new Card visual with Categories is not supported.
-- The hierarchy slicer and small multiples are not yet verified.
-- No row-level or per-viewer security through the gateway (see above).
-- DAX covers what Power BI visuals generate on a live connection; time-intelligence functions are not implemented.
-- DAX and the MCP tools need a licence; this repository ships without one. A free 30-day evaluation key is at https://emondrian.com/license: put the `.lic` file into `modules/` next to `docker-compose.yml`; no restart is needed.
+- Time intelligence comes from time measures in the schema: see *Time intelligence* in 2026.11.04.
+- DAX needs a licence key including `DAX`. A free 30-day evaluation key is at https://emondrian.com/license: put the `.lic` file into `modules/` next to `docker-compose.yml`; no restart is needed. The MCP tools are free with Community from 2026.11.16.
 
 ## 2026.10.27.4
 
@@ -936,7 +933,7 @@ Docker image `emondrian/emondrian:10.0.44`, which `latest` now points to.
 
 ### New
 
-- **Power BI reports built by AI agents.** The MCP tools `make_project`, `make_page`, `make_visual`, `arrange_page` and `validate_report` write a Power BI project (PBIP) with a live connection to your eMondrian model, including sort, Top N, filters and slicer selections. They need a key with DAX and MCP.
+- **Power BI reports built by AI agents.** The MCP tools `make_project`, `make_page`, `make_visual`, `arrange_page` and `validate_report` write a Power BI project (PBIP) with a live connection to your eMondrian model, including sort, Top N, filters and slicer selections. They need a key with DAX.
 
 ### Fixed
 
@@ -961,7 +958,7 @@ Server `10.0.43` · modules `0.0.0.49` · web tools `1.0.1` · entry `1.2.1`
 
 ### New
 
-- **MCP tool `get_csdl`:** a cube's model as Power BI sees it (CSDL), with the field names a Power BI report has to use. Read-only; needs a key with DAX and MCP.
+- **MCP tool `get_csdl`:** a cube's model as Power BI sees it (CSDL), with the field names a Power BI report has to use. Read-only; needs a key with DAX.
 
 ### Fixed
 
